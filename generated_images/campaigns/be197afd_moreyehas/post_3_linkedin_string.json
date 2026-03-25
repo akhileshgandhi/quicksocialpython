@@ -1,0 +1,61 @@
+{
+  "campaign_id": "be197afd-5778-4bb0-92a7-063640539c29",
+  "campaign_name": "MoreYehas",
+  "campaign_goal": "Sales & conversion",
+  "post_number": 3,
+  "total_posts": 3,
+  "platform": "linkedin",
+  "item_type": "product",
+  "item_name": "string",
+  "item_description": "string",
+  "item_price": "string",
+  "item_sku": "string",
+  "item_category": "string",
+  "item_subcategory": "string",
+  "item_tags": [
+    "string"
+  ],
+  "item_duration": null,
+  "item_features": [
+    "string"
+  ],
+  "item_benefits": [
+    "string"
+  ],
+  "item_required_skills": null,
+  "post_percentage": 100,
+  "company_name": "string",
+  "company_description": "string",
+  "website": "string",
+  "tagline": "string",
+  "brand_voice": "string",
+  "brand_colors": "string",
+  "content_type": "Promotional",
+  "content_strategy": "platform_specific",
+  "platforms_in_campaign": [
+    "instagram",
+    "facebook",
+    "linkedin"
+  ],
+  "aspect_ratio": "4:5",
+  "dimensions": "1080x1350",
+  "file_size_bytes": 733118,
+  "model": "gemini-3.1-flash-image-preview",
+  "caption": "Unlock peak performance and elevate your professional toolkit with the revolutionary [PRODUCT NAME]. Experience unparalleled [KEY BENEFIT 1] and seamless [KEY BENEFIT 2], designed for those who demand excellence.  Don't miss our exclusive launch offer: get yours today for just [PRICE] – limited quantities available!",
+  "hashtags": [
+    "#innovation",
+    "#businesstools",
+    "#tech"
+  ],
+  "display_text": "Engineered for Excellence | Achieve Your Ambitions Effortlessly | [PRICE] Launch Offer",
+  "text_rendered_by_gemini": true,
+  "generated_at": "2026-03-25T18:18:49.169267",
+  "local_path": "generated_images\\campaigns\\be197afd_moreyehas\\post_3_linkedin_string.png",
+  "image_url": "/images/campaigns/be197afd_moreyehas/post_3_linkedin_string.png",
+  "logo_included": false,
+  "platform_specs": {
+    "name": "LinkedIn",
+    "tone": "professional, thought-leadership, insightful, business-focused",
+    "caption_style": "longer, value-driven, expertise showcase"
+  }
+}

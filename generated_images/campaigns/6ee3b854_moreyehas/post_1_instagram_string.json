@@ -1,0 +1,68 @@
+{
+  "campaign_id": "6ee3b854-67c3-4cf9-99de-93ffa3163aad",
+  "campaign_name": "MoreYehas",
+  "campaign_goal": "Sales & conversion",
+  "post_number": 1,
+  "total_posts": 3,
+  "platform": "instagram",
+  "item_type": "product",
+  "item_name": "string",
+  "item_description": "string",
+  "item_price": "string",
+  "item_sku": "string",
+  "item_category": "string",
+  "item_subcategory": "string",
+  "item_tags": [
+    "string"
+  ],
+  "item_duration": null,
+  "item_features": [
+    "string"
+  ],
+  "item_benefits": [
+    "string"
+  ],
+  "item_required_skills": null,
+  "post_percentage": 100,
+  "company_name": "string",
+  "company_description": "string",
+  "website": "string",
+  "tagline": "string",
+  "brand_voice": "string",
+  "brand_colors": "string",
+  "content_type": "Promotional",
+  "content_strategy": "platform_specific",
+  "platforms_in_campaign": [
+    "instagram",
+    "facebook",
+    "linkedin"
+  ],
+  "aspect_ratio": "4:5",
+  "dimensions": "1080x1350",
+  "file_size_bytes": 798856,
+  "model": "gemini-3.1-flash-image-preview",
+  "caption": "Unlock unparalleled performance and elevate your everyday with the [PRODUCT NAME]! Experience [KEY BENEFIT] powered by our innovative [FEATURE 1] technology, all for just [PRICE]. Limited stock available – shop now before it’s gone!",
+  "hashtags": [
+    "#innovation",
+    "#tech",
+    "#performance",
+    "#gadget",
+    "#musthave",
+    "#shopnow",
+    "#limitedoffer",
+    "#quality",
+    "#[companyname]",
+    "#[productname]upgrade"
+  ],
+  "display_text": "Transform Your Experience | Cutting-edge [PRODUCT TYPE] for Superior [KEY BENEFIT] | Only [PRICE] – Shop Today!",
+  "text_rendered_by_gemini": true,
+  "generated_at": "2026-03-25T18:18:34.703736",
+  "local_path": "generated_images\\campaigns\\6ee3b854_moreyehas\\post_1_instagram_string.png",
+  "image_url": "/images/campaigns/6ee3b854_moreyehas/post_1_instagram_string.png",
+  "logo_included": false,
+  "platform_specs": {
+    "name": "Instagram",
+    "tone": "casual, trendy, emoji-friendly, visually engaging",
+    "caption_style": "short, punchy, engaging with emojis"
+  }
+}

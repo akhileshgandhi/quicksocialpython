@@ -1,0 +1,61 @@
+{
+  "campaign_id": "6ee3b854-67c3-4cf9-99de-93ffa3163aad",
+  "campaign_name": "MoreYehas",
+  "campaign_goal": "Sales & conversion",
+  "post_number": 3,
+  "total_posts": 3,
+  "platform": "linkedin",
+  "item_type": "product",
+  "item_name": "string",
+  "item_description": "string",
+  "item_price": "string",
+  "item_sku": "string",
+  "item_category": "string",
+  "item_subcategory": "string",
+  "item_tags": [
+    "string"
+  ],
+  "item_duration": null,
+  "item_features": [
+    "string"
+  ],
+  "item_benefits": [
+    "string"
+  ],
+  "item_required_skills": null,
+  "post_percentage": 100,
+  "company_name": "string",
+  "company_description": "string",
+  "website": "string",
+  "tagline": "string",
+  "brand_voice": "string",
+  "brand_colors": "string",
+  "content_type": "Promotional",
+  "content_strategy": "platform_specific",
+  "platforms_in_campaign": [
+    "instagram",
+    "facebook",
+    "linkedin"
+  ],
+  "aspect_ratio": "4:5",
+  "dimensions": "1080x1350",
+  "file_size_bytes": 836884,
+  "model": "gemini-3.1-flash-image-preview",
+  "caption": "Unlock peak performance and unparalleled reliability with the revolutionary [Product Name]. Engineered for the discerning professional, its [Key Feature 1] and [Key Feature 2] deliver an unmatched user experience, ensuring you stay ahead of the curve.  For a limited time, experience this pinnacle of innovation for just [Price] – a significant investment in your success. Elevate your capabilities today.",
+  "hashtags": [
+    "#productinnovation",
+    "#businesstech",
+    "#performance"
+  ],
+  "display_text": "Master Your Workflow | Experience Unrivaled Quality & Speed | Elevate Your Craft: [Price] Limited Offer",
+  "text_rendered_by_gemini": true,
+  "generated_at": "2026-03-25T18:18:20.306259",
+  "local_path": "generated_images\\campaigns\\6ee3b854_moreyehas\\post_3_linkedin_string.png",
+  "image_url": "/images/campaigns/6ee3b854_moreyehas/post_3_linkedin_string.png",
+  "logo_included": false,
+  "platform_specs": {
+    "name": "LinkedIn",
+    "tone": "professional, thought-leadership, insightful, business-focused",
+    "caption_style": "longer, value-driven, expertise showcase"
+  }
+}

@@ -1,0 +1,18 @@
+services:
+  api:
+    build: .
+    container_name: quicksocial-api
+    ports:
+      - "8055:8055"
+    env_file:
+      - .env
+    volumes:
+      - generated_images:/app/generated_images
+    restart: always
+
+volumes:
+  generated_images:
+
+networks:
+  default:
+    name: quicksocial-network

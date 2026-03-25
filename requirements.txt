@@ -1,0 +1,35 @@
+# Web Framework & Server
+fastapi
+uvicorn
+python-multipart  # Required for Form, File, and UploadFile
+
+# Data Validation & Environment
+pydantic
+python-dotenv
+
+# Google Generative AI (Gemini) — with async HTTP support
+google-genai[aiohttp]
+
+# AWS SDK (S3 / Boto3)
+# boto3
+# botocore
+
+# Image Processing
+Pillow
+cairosvg 
+
+# Scraping & HTTP Requests
+requests
+beautifulsoup4
+playwright
+
+# Cloud Image CDN
+cloudinary
+
+# Numerical computing
+numpy
+opencv-python
+
+
+# Utilities
+# (standard libraries like json, uuid, re, base64, logging, datetime, pathlib, io, os are built-in)
