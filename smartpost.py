@@ -656,7 +656,7 @@ Tone: {goal_context['tone']}
 PART 1 — CAPTION REQUIREMENTS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {"MULTI-OFFERING CAPTION — COMPLETE BRAND STORY STRUCTURE (MANDATORY):" if _has_multi_offering else "CAPTION STRUCTURE:"}
-{f"""
+{f'''
 Follow this EXACT narrative flow — every section must be present:
 
 1. HOOK (1 sentence): A scroll-stopping opening that speaks directly to the audience's desire, aspiration, or pain point. Not a brand intro — an emotional trigger.
@@ -669,11 +669,11 @@ Follow this EXACT narrative flow — every section must be present:
 
 5. CALL TO ACTION (1 sentence): Specific, direct, connected to the offering. Tell them exactly what to do next. Urgency or benefit signal where natural.
 
-TONE: {effective_voice}. {f'Write like: {writing_style[:100]}' if writing_style else ''}
+TONE: {effective_voice}. {f"Write like: {writing_style[:100]}" if writing_style else ""}
 EMOJIS: Use strategically — one per key point, not decorative. Each emoji must earn its place.
 SPECIFICITY RULE: Every sentence must earn its place. No filler, no vague positivity. If it could be written for any brand, rewrite it for {company_name} only.
 {"VARIATION RULE: Version A = product-led hook, Version B = service-led hook, Version C = combined-value hook. Different opening energy, same complete story." if num_captions > 1 else ""}
-""" if _has_multi_offering else f"""
+''' if _has_multi_offering else f'''
 1. Open with a scroll-stopping hook — the first line decides if people read on
 2. 3–5 sentences clearly communicating the value proposition{f" of {product_name or service_name}" if (product_name or service_name) else ""}
 3. Match the brand tone{f" — write like: {writing_style[:100]}..." if writing_style else ""}
@@ -681,7 +681,7 @@ SPECIFICITY RULE: Every sentence must earn its place. No filler, no vague positi
 5. Include emojis appropriately{f" — USE THESE: {festival_context.get('emoji', '')}" if festival_context else ""}
 6. End with a compelling, actionable closing line
 {"7. Each variation must take a DIFFERENT narrative angle" if num_captions > 1 else ""}
-"""}
+'''}
 {f"FESTIVAL RULE: MUST include '{festival_context.get('greeting', '')}' and reference {festival_context.get('name', '')} specifically" if festival_context else ""}
 
 RESPOND WITH VALID JSON ONLY (no markdown):
