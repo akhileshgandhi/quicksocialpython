@@ -327,6 +327,15 @@ def create_regenerate_router(gemini_client, gemini_model, image_model, storage_d
             edited_w, edited_h = edited_pil.size
             logger.info(f"   Edited image: {edited_w}x{edited_h} ({len(edited_bytes)} bytes)")
 
+            # Resize to original dimensions if they differ
+            if (edited_w, edited_h) != (width, height):
+                logger.info(f"   Resizing {edited_w}x{edited_h} -> {width}x{height} to match original")
+                edited_pil = edited_pil.resize((width, height), Image.LANCZOS)
+                buf = BytesIO()
+                edited_pil.save(buf, format="PNG")
+                edited_bytes = buf.getvalue()
+                edited_w, edited_h = width, height
+
             # =================================================================
             # STEP 6: Optional caption generation
             # =================================================================

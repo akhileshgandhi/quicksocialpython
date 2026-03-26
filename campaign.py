@@ -48,6 +48,15 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
         except Exception:
             pass
 
+    def _append_event(job_id: str, event: dict) -> None:
+        """Append a progress event to the job's events file (enables cross-instance streaming)."""
+        try:
+            events_file = _campaign_jobs_dir / f"_job_{job_id}.events.jsonl"
+            with open(events_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(event, default=str) + "\n")
+        except Exception:
+            pass
+
     def _read_persisted_job(job_id: str) -> Optional[dict]:
         try:
             f = _campaign_jobs_dir / f"_job_{job_id}.json"
@@ -232,6 +241,11 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
     async def _cleanup_job(job_id: str, delay: int = 300):
         await asyncio.sleep(delay)
         campaign_job_store.pop(job_id, None)
+        # Also remove the cross-instance events file
+        try:
+            (_campaign_jobs_dir / f"_job_{job_id}.events.jsonl").unlink(missing_ok=True)
+        except Exception:
+            pass
         logger.info(f"[WS] Cleaned up campaign job {job_id}")
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -310,13 +324,15 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
 
             logger.info(f" Platforms: {', '.join(valid_platforms)}")
 
-            await queue.put({
+            _started_event = {
                 "step": "started",
                 "message": f"Generating campaign \"{campaign_name}\" for {company_name}",
                 "campaign_id": campaign_id,
                 "total_posts": num_posts,
                 "platforms": valid_platforms,
-            })
+            }
+            await queue.put(_started_event)
+            _append_event(job_id, _started_event)
 
             # ═══════════════════════════════════════════════════════════════
             # STEP 2: PARSE PRODUCTS AND SERVICES FROM INDIVIDUAL FIELDS
@@ -1073,7 +1089,7 @@ EXECUTION STANDARD
                     async with _counter_lock:
                         _completed_count += 1
                         seq = _completed_count
-                    await queue.put({
+                    _image_done_event = {
                         "step": "image_done",
                         "message": f"Preparing {_ordinal(seq)} image",
                         "post_number": task["post_number"],
@@ -1082,16 +1098,20 @@ EXECUTION STANDARD
                         "image_url": result.image_url,
                         "platform": task["platform"],
                         "item_name": task["item"]["name"],
-                    })
+                    }
+                    await queue.put(_image_done_event)
+                    _append_event(job_id, _image_done_event)
                 return result
 
             # Launch all posts in parallel (semaphore limits concurrency)
             logger.info(f"\n   [PARALLEL] Launching {total_tasks} posts with concurrency limit {CONCURRENCY_LIMIT}...")
-            await queue.put({
+            _generating_event = {
                 "step": "generating",
                 "message": f"Preparing {total_tasks} image{'s' if total_tasks > 1 else ''} for your campaign...",
                 "total_posts": total_tasks,
-            })
+            }
+            await queue.put(_generating_event)
+            _append_event(job_id, _generating_event)
             results = await asyncio.gather(
                 *[_post_and_notify(task) for task in generation_queue],
                 return_exceptions=True
@@ -1168,7 +1188,9 @@ EXECUTION STANDARD
             campaign_job_store[job_id]["status"] = "done"
             campaign_job_store[job_id]["result"] = _result_dict
             _persist_job(job_id, {"status": "done", "result": _result_dict})
-            await queue.put({"step": "done", "message": "Completed", "result": _result_dict})
+            _done_event = {"step": "done", "message": "Completed", "result": _result_dict}
+            await queue.put(_done_event)
+            _append_event(job_id, _done_event)
             asyncio.create_task(_cleanup_job(job_id))
 
         except (Exception, asyncio.CancelledError) as e:
@@ -1177,11 +1199,13 @@ EXECUTION STANDARD
             campaign_job_store[job_id]["status"] = "error"
             campaign_job_store[job_id]["error"] = str(e)
             _persist_job(job_id, {"status": "error", "error": str(e)})
-            await queue.put({
+            _error_event = {
                 "step": "error",
                 "message": "Campaign generation failed. Please try again.",
                 "error": str(e),
-            })
+            }
+            await queue.put(_error_event)
+            _append_event(job_id, _error_event)
             asyncio.create_task(_cleanup_job(job_id))
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1292,6 +1316,8 @@ EXECUTION STANDARD
         job_id = str(uuid.uuid4())
         queue: asyncio.Queue = asyncio.Queue()
         campaign_job_store[job_id] = {"status": "processing", "queue": queue}
+        # Persist immediately so other instances/workers can detect this job
+        _persist_job(job_id, {"status": "processing"})
         logger.info(f"[WS] Campaign job created: {job_id}  campaign='{campaign_name}'")
 
         asyncio.create_task(_run_campaign_job(
@@ -1371,7 +1397,7 @@ EXECUTION STANDARD
             await asyncio.sleep(0.15)
 
         if job_id not in campaign_job_store:
-            # Check file — handles reconnects after completion
+            # Check file — handles reconnects AND cross-instance jobs
             saved = _read_persisted_job(job_id)
             if saved and saved.get("status") == "done":
                 await websocket.send_json({"step": "done", "message": "Completed", "result": saved["result"]})
@@ -1379,6 +1405,33 @@ EXECUTION STANDARD
             elif saved and saved.get("status") == "error":
                 await websocket.send_json({"step": "error", "message": "Campaign generation failed.", "error": saved.get("error", "Unknown error")})
                 await websocket.close(code=1000)
+            elif saved and saved.get("status") == "processing":
+                # Job is running on a different instance — stream events from shared disk file
+                logger.info(f"[WS] Cross-instance job detected {job_id}, switching to file-poll mode")
+                events_file = _campaign_jobs_dir / f"_job_{job_id}.events.jsonl"
+                cursor = 0
+                try:
+                    while True:
+                        if events_file.exists():
+                            lines = events_file.read_text(encoding="utf-8").splitlines()
+                            for line in lines[cursor:]:
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                event = json.loads(line)
+                                await websocket.send_json(event)
+                                cursor += 1
+                                if event.get("step") in ("done", "error"):
+                                    await websocket.close(code=1000)
+                                    return
+                        await asyncio.sleep(0.5)
+                except WebSocketDisconnect:
+                    logger.info(f"[WS] Client disconnected from cross-instance job {job_id}")
+                finally:
+                    try:
+                        await websocket.close(code=1000)
+                    except Exception:
+                        pass
             else:
                 await websocket.send_json({"step": "error", "error": f"Invalid job_id: {job_id}"})
                 await websocket.close(code=1008)
