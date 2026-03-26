@@ -36,6 +36,27 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
     router = APIRouter(tags=["Campaign"])
     campaign_job_store: Dict[str, dict] = {}
 
+    # File-based persistence so reconnecting clients can retrieve completed results
+    _campaign_jobs_dir = Path(storage_dir) / "campaign_jobs"
+    _campaign_jobs_dir.mkdir(parents=True, exist_ok=True)
+
+    def _persist_job(job_id: str, data: dict) -> None:
+        try:
+            (_campaign_jobs_dir / f"_job_{job_id}.json").write_text(
+                json.dumps(data, default=str), encoding="utf-8"
+            )
+        except Exception:
+            pass
+
+    def _read_persisted_job(job_id: str) -> Optional[dict]:
+        try:
+            f = _campaign_jobs_dir / f"_job_{job_id}.json"
+            if f.exists():
+                return json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        return None
+
     def _ordinal(n: int) -> str:
         suffix = {1: "st", 2: "nd", 3: "rd"}.get(n if n < 20 else n % 10, "th")
         return f"{n}{suffix}"
@@ -1145,7 +1166,8 @@ EXECUTION STANDARD
             )
             _result_dict = campaign_response.model_dump()
             campaign_job_store[job_id]["status"] = "done"
-            campaign_job_store[job_id]["result"] = _result_dict   # persisted for reconnects
+            campaign_job_store[job_id]["result"] = _result_dict
+            _persist_job(job_id, {"status": "done", "result": _result_dict})
             await queue.put({"step": "done", "message": "Completed", "result": _result_dict})
             asyncio.create_task(_cleanup_job(job_id))
 
@@ -1154,6 +1176,7 @@ EXECUTION STANDARD
             logger.error(traceback.format_exc())
             campaign_job_store[job_id]["status"] = "error"
             campaign_job_store[job_id]["error"] = str(e)
+            _persist_job(job_id, {"status": "error", "error": str(e)})
             await queue.put({
                 "step": "error",
                 "message": "Campaign generation failed. Please try again.",
@@ -1346,9 +1369,19 @@ EXECUTION STANDARD
             if job_id in campaign_job_store:
                 break
             await asyncio.sleep(0.15)
-        else:
-            await websocket.send_json({"step": "error", "error": f"Invalid job_id: {job_id}"})
-            await websocket.close(code=1008)
+
+        if job_id not in campaign_job_store:
+            # Check file — handles reconnects after completion
+            saved = _read_persisted_job(job_id)
+            if saved and saved.get("status") == "done":
+                await websocket.send_json({"step": "done", "message": "Completed", "result": saved["result"]})
+                await websocket.close(code=1000)
+            elif saved and saved.get("status") == "error":
+                await websocket.send_json({"step": "error", "message": "Campaign generation failed.", "error": saved.get("error", "Unknown error")})
+                await websocket.close(code=1000)
+            else:
+                await websocket.send_json({"step": "error", "error": f"Invalid job_id: {job_id}"})
+                await websocket.close(code=1008)
             return
 
         queue: asyncio.Queue = campaign_job_store[job_id]["queue"]
