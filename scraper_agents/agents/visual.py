@@ -73,9 +73,9 @@ class VisualIdentityAgent(BaseAgent):
         # ── Step 3: Wait for logo and extract logo K-means colors ─────
         logo_colors: List[str] = []
         try:
-            await asyncio.wait_for(state.logo_ready.wait(), timeout=20.0)
+            await asyncio.wait_for(state.logo_ready.wait(), timeout=30.0)
         except asyncio.TimeoutError:
-            self.log("logo_ready timed out after 20s — proceeding without logo colors")
+            self.log("logo_ready timed out after 30s — proceeding without logo colors")
 
         if state.logo_bytes and state.logo_local_path:
             logo_colors = extract_colors_from_logo(state.logo_local_path, count=5)

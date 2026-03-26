@@ -643,8 +643,9 @@ You are a world-class creative director, art director, and visual designer with 
 
 Read the complete brand payload and campaign brief. Then plan and generate a fully crafted marketing image — visual concept, composition, integrated typography, and logo placement — executed at agency level.
 
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BRAND PAYLOAD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Company: {company_name}
 Tagline: "{tagline or '—'}"
 Brand Voice: {brand_voice or 'Professional and trustworthy'}
@@ -652,7 +653,9 @@ Brand Colors: {brand_colors or 'Industry-appropriate palette'}
 Website: {website or '—'}
 Industry Profile: {company_description or 'Professional services'}
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CAMPAIGN BRIEF
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Promoting: {item_type.title()} — {item_name}
 What it is: {_item_desc}
 Goal: {campaign_goal.value.upper()} — {_get_goal_focus(campaign_goal.value)}
@@ -662,8 +665,9 @@ Content Type: {content_type.value.upper()} — {_get_content_type_image_directio
 Platform: {platform_spec['name']} | Format: {platform_spec['aspect_ratio']} | Tone: {platform_spec['tone']}
 Platform Visual Language: {_platform_vt}
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 YOUR DESIGN DECISIONS
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ▸ STEP 1 — VISUAL CONCEPT
 
 READ THE FULL BRAND PAYLOAD AND CAMPAIGN BRIEF ABOVE BEFORE PROCEEDING.
@@ -673,15 +677,17 @@ It must feel like it was commissioned and approved by {company_name}'s own marke
 not AI-generated, not a template, not a stock photo concept.
 
 CREATIVE DIRECTION: {_visual_approach}
-{f"""
+{f'''
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 USER'S VISUAL CONCEPT — PRIMARY CREATIVE BRIEF
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {custom_prompt}
 
 This is the user's chosen creative direction. Use it as the foundation for the scene
 concept. Adapt it to the brand payload, the product being promoted, and the platform —
 but preserve the core visual concept, composition, lighting approach, and emotional
 intent exactly as described.
-""" if custom_prompt else ""}
+''' if custom_prompt else ""}
 THIS POST'S ANGLE — {_angle_name}:
 {_angle_desc}
 
@@ -723,8 +729,9 @@ Text color drawn from this image's own palette — harmonize with {_color_ref}, 
 ▸ STEP 4 — LOGO
 {_logo_instruction}
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXECUTION STANDARD
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {REALISM_STANDARD}
 
 {NEGATIVE_PROMPT}
@@ -740,8 +747,9 @@ You are a world-class creative director, art director, and visual designer with 
 
 Read the complete brand payload and campaign brief. Then plan and generate a fully crafted marketing image — visual concept, composition, integrated typography, and logo placement — executed at agency level.
 
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BRAND PAYLOAD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Company: {company_name}
 Tagline: "{tagline or '—'}"
 Brand Voice: {brand_voice or 'Professional and trustworthy'}
@@ -749,9 +757,9 @@ Brand Colors: {brand_colors or 'Industry-appropriate palette'}
 Website: {website or '—'}
 Industry Profile: {company_description or 'Professional services'}
 
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CAMPAIGN BRIEF
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Promoting: {item_type.title()} — {item_name}
 What it is: {_item_desc}
 Goal: {campaign_goal.value.upper()} — {_get_goal_focus(campaign_goal.value)}
@@ -761,9 +769,9 @@ Content Type: {content_type.value.upper()} — {_get_content_type_image_directio
 Platform: Multi-platform ({', '.join(valid_platforms)}) | Format: 4:5 Portrait | Current: {platform_spec['name']}
 Platform Visual Language: {_platform_vt}
 
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 YOUR DESIGN DECISIONS
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ▸ STEP 1 — VISUAL CONCEPT
 
 READ THE FULL BRAND PAYLOAD AND CAMPAIGN BRIEF ABOVE BEFORE PROCEEDING.
@@ -773,17 +781,17 @@ It must feel like it was commissioned and approved by {company_name}'s own marke
 not AI-generated, not a template, not a stock photo concept.
 
 CREATIVE DIRECTION: {_visual_approach}
-{f"""
-
+{f'''
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 USER'S VISUAL CONCEPT — PRIMARY CREATIVE BRIEF
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {custom_prompt}
 
 This is the user's chosen creative direction. Use it as the foundation for the scene
 concept. Adapt it to the brand payload, the product being promoted, and the platform —
 but preserve the core visual concept, composition, lighting approach, and emotional
 intent exactly as described.
-""" if custom_prompt else ""}
+''' if custom_prompt else ""}
 THIS POST'S ANGLE — {_angle_name}:
 {_angle_desc}
 
@@ -825,9 +833,9 @@ Text color drawn from this image's own palette — harmonize with {_color_ref}, 
 ▸ STEP 4 — LOGO
 {_logo_instruction}
 
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXECUTION STANDARD
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {REALISM_STANDARD}
 
 {NEGATIVE_PROMPT}

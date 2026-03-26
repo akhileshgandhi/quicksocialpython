@@ -408,6 +408,8 @@ def create_regenerate_router(gemini_client, gemini_model, image_model, storage_d
                 "generated_at": datetime.now().isoformat(),
                 "model": image_model,
                 "file_size_bytes": len(edited_bytes),
+                "caption": caption_text,
+                "hashtags": hashtags_list,
             }
 
             metadata_file = file_path.with_suffix(".json")

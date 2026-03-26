@@ -385,6 +385,18 @@ async def _run_agentic_scrape(
     return response
 
 
+def _build_llm_usage(state) -> dict:
+    """Safely aggregate LLM usage from state, guarding against stale module cache."""
+    calls = getattr(state, "llm_calls", [])
+    return {
+        "total_calls": len(calls),
+        "total_prompt_tokens": sum(c.get("prompt_tokens", 0) for c in calls),
+        "total_output_tokens": sum(c.get("output_tokens", 0) for c in calls),
+        "total_tokens": sum(c.get("total_tokens", 0) for c in calls),
+        "calls": calls,
+    }
+
+
 def _assemble_response(state: ScrapeState, start_time: float) -> SmartScrapeResponse:
     """Build SmartScrapeResponse from ScrapeState."""
 
@@ -554,13 +566,7 @@ def _assemble_response(state: ScrapeState, start_time: float) -> SmartScrapeResp
             "data_gaps": state.data_gaps,
             "total_time_seconds": round(total_time, 1),
             "engine": "agentic_v2",
-            "llm_usage": {
-                "total_calls": len(state.llm_calls),
-                "total_prompt_tokens": sum(c.get("prompt_tokens", 0) for c in state.llm_calls),
-                "total_output_tokens": sum(c.get("output_tokens", 0) for c in state.llm_calls),
-                "total_tokens": sum(c.get("total_tokens", 0) for c in state.llm_calls),
-                "calls": state.llm_calls,
-            },
+            "llm_usage": _build_llm_usage(state),
         },
     )
 

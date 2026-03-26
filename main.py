@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 # Gemini API Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable is not set. Check your .env file.")
 client = genai.Client(api_key=GEMINI_API_KEY)
 # model = "gemini-2.5-flash"
 model = "gemini-2.5-flash-lite"

@@ -583,9 +583,9 @@ def convert_svg_to_png(svg_bytes: bytes, target_size: int = 512) -> Optional[byt
             )
             return png_bytes
     except ImportError:
-        logger.info("[SVG->PNG] cairosvg not available, trying Playwright fallback")
-    except Exception as e:
-        logger.info(f"[SVG->PNG] cairosvg failed ({e}), trying Playwright fallback")
+        logger.debug("[SVG->PNG] cairosvg not available, using Playwright fallback")
+    except Exception:
+        logger.debug("[SVG->PNG] cairosvg unavailable (libcairo not found), using Playwright fallback")
 
     # ── Strategy 2: Playwright headless Chromium screenshot ───────────
     try:
@@ -613,7 +613,10 @@ def convert_svg_to_png(svg_bytes: bytes, target_size: int = 512) -> Optional[byt
 
             pw = _sp().start()
             try:
-                browser = pw.chromium.launch(headless=True)
+                browser = pw.chromium.launch(
+                    headless=True,
+                    args=["--no-sandbox", "--disable-dev-shm-usage"],
+                )
                 page = browser.new_page(
                     viewport={
                         "width": target_size + 40,
@@ -645,11 +648,22 @@ def convert_svg_to_png(svg_bytes: bytes, target_size: int = 512) -> Optional[byt
             finally:
                 pw.stop()
 
-        # Run in a separate thread to avoid "Sync API inside asyncio loop" error
+        # Run in a separate thread to avoid "Sync API inside asyncio loop" error.
+        # Retry once on transient browser process crashes (common under concurrent load).
+        import time as _time
         from concurrent.futures import ThreadPoolExecutor
 
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            png_bytes = pool.submit(_render).result(timeout=30)
+        png_bytes = None
+        for _attempt in range(2):
+            try:
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    png_bytes = pool.submit(_render).result(timeout=30)
+                if png_bytes:
+                    break
+            except Exception as _render_err:
+                logger.debug(f"[SVG->PNG] Playwright attempt {_attempt + 1} failed: {_render_err}")
+                if _attempt == 0:
+                    _time.sleep(1)
 
         if png_bytes:
             img = Image.open(BytesIO(png_bytes))

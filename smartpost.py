@@ -1596,6 +1596,13 @@ Return ONLY a valid JSON array. No markdown fences, no explanation text. Exactly
                     _visual_approach = _get_smartpost_visual_approach(posting_goal.value, effective_voice)
                 _color_ref = effective_colors
 
+                # Defaults — overridden in the else branch when variant briefs are used
+                _b_territory = posting_goal.value.replace("_", " ").title()
+                _b_payoff    = f"Experience the difference with {company_name}"
+                _b_concept   = ""
+                _b_comp      = ""
+                _b_light     = ""
+
                 # Creative direction — brief-based or custom_prompt anchored
                 if custom_prompt:
                     # custom_prompt defines the scene; just vary composition across executions
