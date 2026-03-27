@@ -32,3 +32,6 @@ generated_images/
 # OS
 .DS_Store
 Thumbs.db
+
+# Knowledge base (generated, not source)
+.understand-anything/

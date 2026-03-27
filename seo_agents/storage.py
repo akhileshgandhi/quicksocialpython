@@ -29,10 +29,17 @@ def save_data_object(
     project_id: str,
     data_type: str,
     data: Dict[str, Any],
-    version: int,
+    version: Optional[int],
     storage_dir: Path,
-) -> None:
-    """Writes data_objects/{data_type}_v{version}.json. Uses atomic write."""
+) -> int:
+    """Writes data_objects/{data_type}_v{version}.json. Uses atomic write.
+    
+    If version is not provided, auto-determines next version by scanning existing files.
+    Returns the version number used.
+    """
+    if version is None:
+        version = get_next_version(project_id, data_type, storage_dir)
+    
     project_dir = ensure_project_dir(project_id, storage_dir)
     temp_path = project_dir / "data_objects" / f"{data_type}_v{version}.json.tmp"
     target_path = project_dir / "data_objects" / f"{data_type}_v{version}.json"
@@ -41,6 +48,22 @@ def save_data_object(
         json.dump(data, f, indent=2)
 
     os.replace(temp_path, target_path)
+    
+    cleanup_old_versions(project_id, data_type, storage_dir, keep=3)
+    
+    return version
+
+
+def get_next_version(
+    project_id: str,
+    data_type: str,
+    storage_dir: Path,
+) -> int:
+    """Determines the next version number by scanning existing files."""
+    versions = list_data_object_versions(project_id, data_type, storage_dir)
+    if not versions:
+        return 1
+    return max(versions) + 1
 
 
 def load_data_object(

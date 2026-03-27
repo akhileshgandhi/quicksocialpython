@@ -488,4 +488,180 @@ class RegenerateImageResponse(BaseModel):
     hashtags: Optional[List[str]] = None
     metadata: Dict[str, Any]
     original_metadata: Optional[Dict[str, Any]] = None    # From source .json sidecar
+
+
+# ===============================================================================
+# SEO PROJECT PYDANTIC MODELS (Phase 2.1)
+# ===============================================================================
+
+class SEOProjectStatus(str, Enum):
+    """SEO project pipeline status"""
+    discovery = "discovery"
+    intelligence = "intelligence"
+    strategy = "strategy"
+    execution = "execution"
+    monitoring = "monitoring"
+    paused = "paused"
+    archived = "archived"
+
+
+class ApprovalGate(BaseModel):
+    """Approval gate for pipeline pauses"""
+    required: bool = False
+    approved: bool = False
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+
+
+class SEOProjectConfig(BaseModel):
+    """SEO project configuration"""
+    crawl_depth: int = 3
+    target_geography: str = "Global"
+    auto_approve: bool = False
+
+
+class SEOProject(BaseModel):
+    """SEO Project API model for request/response validation"""
+    project_id: str
+    brand_id: str
+    status: SEOProjectStatus = SEOProjectStatus.DISCOVERY
+    current_layer: int = 1
+    completed_agents: List[str] = []
+    approval_gates: Dict[str, ApprovalGate] = {
+        "gate1_technical": ApprovalGate(),
+        "gate2_strategy": ApprovalGate(),
+        "gate3_content": ApprovalGate(),
+        "gate4_reoptimization": ApprovalGate(),
+    }
+    config: SEOProjectConfig = SEOProjectConfig()
+    created_at: datetime
+    updated_at: datetime
+
+
+# ===============================================================================
+# SEO DATA OBJECT MODEL (Phase 2.1.2)
+# ===============================================================================
+
+class SEODataType(str, Enum):
+    """SEO data object types"""
+    seo_project_context = "seo_project_context"
+    site_inventory = "site_inventory"
+    technical_audit_report = "technical_audit_report"
+    competitor_matrix = "competitor_matrix"
+    keyword_universe = "keyword_universe"
+    keyword_clusters = "keyword_clusters"
+    page_keyword_map = "page_keyword_map"
+    content_gap_report = "content_gap_report"
+    seo_priority_backlog = "seo_priority_backlog"
+    page_optimization_briefs = "page_optimization_briefs"
+    content_briefs = "content_briefs"
+    content_drafts = "content_drafts"
+    internal_link_graph = "internal_link_graph"
+    schema_map = "schema_map"
+    performance_dashboard = "performance_dashboard"
+    reoptimization_queue = "reoptimization_queue"
+
+
+class SEODataObject(BaseModel):
+    """SEO Data Object API model"""
+    project_id: str
+    agent_id: str
+    data_type: SEODataType
+    version: int = 1
+    data: Dict[str, Any]
+    created_by: Optional[str] = None
+    created_at: datetime
+
+
+# ===============================================================================
+# SEO JOB MODEL (Phase 2.1.3)
+# ===============================================================================
+
+class SEOJobStatus(str, Enum):
+    """SEO job execution status"""
+    pending = "pending"
+    running = "running"
+    completed = "completed"
+    failed = "failed"
+    cancelled = "cancelled"
+
+
+class SEOJobError(BaseModel):
+    """SEO job error details"""
+    message: str
+    stack: Optional[str] = None
+
+
+class SEOJob(BaseModel):
+    """SEO Job API model"""
+    job_id: str
+    project_id: str
+    agent_id: str
+    status: SEOJobStatus = SEOJobStatus.PENDING
+    progress: int = 0
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error: Optional[SEOJobError] = None
+    input_data_types: List[str] = []
+    output_data_type: Optional[str] = None
+    execution_time_ms: Optional[int] = None
+    triggered_by: Optional[str] = None
+    created_at: datetime
+
+
+# ===============================================================================
+# SEO API REQUEST/RESPONSE MODELS (Phase 4.3)
+# ===============================================================================
+
+class SEOProjectCreate(BaseModel):
+    """Request model for creating SEO project"""
+    brand_id: str
+    website_url: str
+    config: Optional[SEOProjectConfig] = None
+    intake_data: Optional[Dict[str, Any]] = None
+
+
+class GateApprovalRequest(BaseModel):
+    """Request model for gate approval"""
+    approved_by: str
+
+
+class SEOProjectResponse(BaseModel):
+    """Response model for SEO project"""
+    project_id: str
+    brand_id: str
+    website_url: Optional[str] = None
+    status: SEOProjectStatus
+    current_layer: int
+    completed_agents: List[str]
+    completed_agents_count: int
+    approval_gates: Dict[str, ApprovalGate]
+    config: SEOProjectConfig
+    created_at: datetime
+    updated_at: datetime
+
+
+class SEOStatusResponse(BaseModel):
+    """Response model for status endpoint"""
+    project_id: str
+    status: str
+    current_layer: int
+    completed_agents: List[str]
+    errors: List[str]
+    approval_gates: Dict[str, Any]
+    total_time_seconds: float
+
+
+class PipelineStartResponse(BaseModel):
+    """Response model for pipeline start"""
+    status: str
+    project_id: str
+    message: str
+
+
+class GateApprovalResponse(BaseModel):
+    """Response model for gate approval"""
+    status: str
+    gate: str
+    approved_at: str
  
