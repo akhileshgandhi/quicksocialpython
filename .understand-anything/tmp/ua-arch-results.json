@@ -1,0 +1,74 @@
+{
+  "scriptCompleted": true,
+  "directoryGroups": {
+    "root": [
+      "file:campaign.py",
+      "file:main.py",
+      "file:models.py",
+      "file:prompt_enhancer.py",
+      "file:prompt_guards.py",
+      "file:regenerate.py",
+      "file:smartpost.py",
+      "file:utils.py"
+    ],
+    "scraper_agents": [
+      "file:scraper_agents/__init__.py",
+      "file:scraper_agents/agents/__init__.py",
+      "file:scraper_agents/agents/base.py",
+      "file:scraper_agents/agents/brand_intelligence.py",
+      "file:scraper_agents/agents/contact.py",
+      "file:scraper_agents/agents/content.py",
+      "file:scraper_agents/agents/crawler.py",
+      "file:scraper_agents/agents/logo.py",
+      "file:scraper_agents/agents/products.py",
+      "file:scraper_agents/agents/visual.py",
+      "file:scraper_agents/agents/web_search.py",
+      "file:scraper_agents/config.py",
+      "file:scraper_agents/extractors/__init__.py",
+      "file:scraper_agents/extractors/color_extraction.py",
+      "file:scraper_agents/extractors/contact_extraction.py",
+      "file:scraper_agents/extractors/content_parsing.py",
+      "file:scraper_agents/extractors/font_extraction.py",
+      "file:scraper_agents/extractors/html_helpers.py",
+      "file:scraper_agents/extractors/image_helpers.py",
+      "file:scraper_agents/extractors/product_parsing.py",
+      "file:scraper_agents/orchestrator.py",
+      "file:scraper_agents/prompts/__init__.py",
+      "file:scraper_agents/prompts/brand_analysis.py",
+      "file:scraper_agents/prompts/color_verification.py",
+      "file:scraper_agents/prompts/content_analysis.py",
+      "file:scraper_agents/prompts/gap_fill.py",
+      "file:scraper_agents/prompts/image_classification.py",
+      "file:scraper_agents/prompts/logo_search.py",
+      "file:scraper_agents/prompts/site_classification.py",
+      "file:scraper_agents/prompts/visual_analysis.py",
+      "file:scraper_agents/prompts/visual_and_classify.py",
+      "file:scraper_agents/state.py"
+    ]
+  },
+  "interGroupImports": [
+    {
+      "from": "root",
+      "to": "scraper_agents",
+      "count": 1
+    },
+    {
+      "from": "scraper_agents",
+      "to": "root",
+      "count": 2
+    }
+  ],
+  "patternMatches": {
+    "root": "api",
+    "scraper_agents": "service",
+    "models": "data",
+    "utils": "utility"
+  },
+  "fileStats": {
+    "totalFileNodes": 40,
+    "filesPerGroup": {
+      "root": 8,
+      "scraper_agents": 32
+    }
+  }
+}

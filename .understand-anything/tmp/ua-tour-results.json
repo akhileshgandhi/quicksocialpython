@@ -1,0 +1,1993 @@
+{
+  "scriptCompleted": true,
+  "entryPointCandidates": [
+    {
+      "id": "file:main.py",
+      "score": 6,
+      "name": "main.py",
+      "summary": "Entry point for the FastAPI application, configuring routers and static file hosting."
+    },
+    {
+      "id": "file:scraper_agents/orchestrator.py",
+      "score": 2,
+      "name": "orchestrator.py",
+      "summary": "Specialized agent or extractor for scraper_agents/orchestrator.py within the scraping pipeline."
+    },
+    {
+      "id": "file:campaign.py",
+      "score": 1,
+      "name": "campaign.py",
+      "summary": "Handles AI-driven marketing campaign generation, orchestrating post creation and storage."
+    },
+    {
+      "id": "file:models.py",
+      "score": 1,
+      "name": "models.py",
+      "summary": "Defines the Pydantic data models and Enums for the system's data contracts."
+    },
+    {
+      "id": "file:prompt_enhancer.py",
+      "score": 1,
+      "name": "prompt_enhancer.py",
+      "summary": "Source file for prompt_enhancer.py."
+    }
+  ],
+  "fanInRanking": [
+    {
+      "id": "file:scraper_agents/extractors/html_helpers.py",
+      "fanIn": 16
+    },
+    {
+      "id": "file:scraper_agents/config.py",
+      "fanIn": 13
+    },
+    {
+      "id": "file:scraper_agents/state.py",
+      "fanIn": 10
+    },
+    {
+      "id": "file:scraper_agents/agents/base.py",
+      "fanIn": 9
+    },
+    {
+      "id": "file:models.py",
+      "fanIn": 6
+    },
+    {
+      "id": "file:scraper_agents/extractors/product_parsing.py",
+      "fanIn": 6
+    },
+    {
+      "id": "file:utils.py",
+      "fanIn": 4
+    },
+    {
+      "id": "file:prompt_guards.py",
+      "fanIn": 3
+    },
+    {
+      "id": "file:scraper_agents/agents/crawler.py",
+      "fanIn": 3
+    },
+    {
+      "id": "file:scraper_agents/agents/logo.py",
+      "fanIn": 2
+    },
+    {
+      "id": "file:scraper_agents/agents/visual.py",
+      "fanIn": 2
+    },
+    {
+      "id": "file:scraper_agents/agents/products.py",
+      "fanIn": 2
+    },
+    {
+      "id": "file:scraper_agents/agents/content.py",
+      "fanIn": 2
+    },
+    {
+      "id": "file:scraper_agents/agents/contact.py",
+      "fanIn": 2
+    },
+    {
+      "id": "file:scraper_agents/agents/web_search.py",
+      "fanIn": 2
+    },
+    {
+      "id": "file:scraper_agents/agents/brand_intelligence.py",
+      "fanIn": 2
+    },
+    {
+      "id": "file:scraper_agents/prompts/visual_and_classify.py",
+      "fanIn": 2
+    },
+    {
+      "id": "function:campaign.py:create_campaign_router",
+      "fanIn": 1
+    },
+    {
+      "id": "function:campaign.py:_get_campaign_goal_caption_direction",
+      "fanIn": 1
+    },
+    {
+      "id": "function:campaign.py:_get_visual_approach",
+      "fanIn": 1
+    }
+  ],
+  "bfsTraversal": {
+    "startNode": "file:main.py",
+    "order": [
+      "file:main.py",
+      "file:campaign.py",
+      "file:smartpost.py",
+      "file:scraper_agents/__init__.py",
+      "file:prompt_enhancer.py",
+      "file:regenerate.py",
+      "function:campaign.py:create_campaign_router",
+      "function:campaign.py:_get_campaign_goal_caption_direction",
+      "function:campaign.py:_get_visual_approach",
+      "function:campaign.py:_get_font_style",
+      "function:campaign.py:_get_content_type_image_direction",
+      "function:campaign.py:_get_content_type_caption_direction",
+      "file:models.py"
+    ],
+    "depthMap": {
+      "file:main.py": 0,
+      "file:campaign.py": 1,
+      "file:smartpost.py": 1,
+      "file:scraper_agents/__init__.py": 1,
+      "file:prompt_enhancer.py": 1,
+      "file:regenerate.py": 1,
+      "function:campaign.py:create_campaign_router": 2,
+      "function:campaign.py:_get_campaign_goal_caption_direction": 2,
+      "function:campaign.py:_get_visual_approach": 2,
+      "function:campaign.py:_get_font_style": 2,
+      "function:campaign.py:_get_content_type_image_direction": 2,
+      "function:campaign.py:_get_content_type_caption_direction": 2,
+      "file:models.py": 2,
+      "file:utils.py": 2,
+      "file:prompt_guards.py": 2,
+      "function:smartpost.py:_get_smartpost_visual_approach": 2,
+      "function:smartpost.py:_get_smartpost_font_style": 2,
+      "function:smartpost.py:_get_slide_roles": 2,
+      "function:smartpost.py:_select_carousel_arc": 2,
+      "function:smartpost.py:create_smartpost_router": 2,
+      "function:smartpost.py:_get_posting_goal_context": 2,
+      "function:smartpost.py:_save_smart_post_image": 2,
+      "function:smartpost.py:_build_fallback_plan": 2,
+      "function:smartpost.py:_build_festival_image_section": 2,
+      "function:smartpost.py:_build_item_section": 2,
+      "file:scraper_agents/orchestrator.py": 2,
+      "function:prompt_enhancer.py:create_prompt_enhancer_router": 2,
+      "function:regenerate.py:_upload_to_cloudinary": 2,
+      "function:regenerate.py:create_regenerate_router": 2,
+      "class:models.py:CampaignGoal": 3,
+      "class:models.py:ContentType": 3,
+      "class:models.py:ContentStrategy": 3,
+      "class:models.py:PostingGoal": 3,
+      "class:models.py:ContentGenerationMode": 3,
+      "class:models.py:MediaType": 3,
+      "class:models.py:Feature": 3,
+      "class:models.py:RequiredSkill": 3,
+      "class:models.py:CampaignProduct": 3,
+      "class:models.py:CampaignService": 3,
+      "class:models.py:GeneratedPost": 3,
+      "class:models.py:CampaignResponse": 3,
+      "class:models.py:SmartPostCaption": 3,
+      "class:models.py:SmartPostImage": 3,
+      "class:models.py:SmartPostResponse": 3,
+      "class:models.py:TargetAudienceSegment": 3,
+      "class:models.py:ProductFeature": 3,
+      "class:models.py:ScrapedProduct": 3,
+      "class:models.py:ServiceBenefit": 3,
+      "class:models.py:ServiceSkill": 3,
+      "class:models.py:ScrapedService": 3,
+      "class:models.py:ContentAsset": 3,
+      "class:models.py:BrandIdentity": 3,
+      "class:models.py:VisualBranding": 3,
+      "class:models.py:SeoSocial": 3,
+      "class:models.py:SocialLinks": 3,
+      "class:models.py:ContactInfo": 3,
+      "class:models.py:SmartScrapeResponse": 3,
+      "class:models.py:MarketingPostRequest": 3,
+      "class:models.py:CompleteImageResponse": 3,
+      "class:models.py:PromptOption": 3,
+      "class:models.py:PromptEnhancerResponse": 3,
+      "class:models.py:RegenerateImageResponse": 3
+    },
+    "byDepth": {
+      "0": [
+        "file:main.py"
+      ],
+      "1": [
+        "file:campaign.py",
+        "file:smartpost.py",
+        "file:scraper_agents/__init__.py",
+        "file:prompt_enhancer.py",
+        "file:regenerate.py"
+      ],
+      "2": [
+        "function:campaign.py:create_campaign_router",
+        "function:campaign.py:_get_campaign_goal_caption_direction",
+        "function:campaign.py:_get_visual_approach",
+        "function:campaign.py:_get_font_style",
+        "function:campaign.py:_get_content_type_image_direction",
+        "function:campaign.py:_get_content_type_caption_direction",
+        "file:models.py",
+        "file:utils.py",
+        "file:prompt_guards.py",
+        "function:smartpost.py:_get_smartpost_visual_approach",
+        "function:smartpost.py:_get_smartpost_font_style",
+        "function:smartpost.py:_get_slide_roles",
+        "function:smartpost.py:_select_carousel_arc",
+        "function:smartpost.py:create_smartpost_router",
+        "function:smartpost.py:_get_posting_goal_context",
+        "function:smartpost.py:_save_smart_post_image",
+        "function:smartpost.py:_build_fallback_plan",
+        "function:smartpost.py:_build_festival_image_section",
+        "function:smartpost.py:_build_item_section",
+        "file:scraper_agents/orchestrator.py",
+        "function:prompt_enhancer.py:create_prompt_enhancer_router",
+        "function:regenerate.py:_upload_to_cloudinary",
+        "function:regenerate.py:create_regenerate_router"
+      ],
+      "3": [
+        "class:models.py:CampaignGoal",
+        "class:models.py:ContentType",
+        "class:models.py:ContentStrategy",
+        "class:models.py:PostingGoal",
+        "class:models.py:ContentGenerationMode",
+        "class:models.py:MediaType",
+        "class:models.py:Feature",
+        "class:models.py:RequiredSkill",
+        "class:models.py:CampaignProduct",
+        "class:models.py:CampaignService",
+        "class:models.py:GeneratedPost",
+        "class:models.py:CampaignResponse",
+        "class:models.py:SmartPostCaption",
+        "class:models.py:SmartPostImage",
+        "class:models.py:SmartPostResponse",
+        "class:models.py:TargetAudienceSegment",
+        "class:models.py:ProductFeature",
+        "class:models.py:ScrapedProduct",
+        "class:models.py:ServiceBenefit",
+        "class:models.py:ServiceSkill",
+        "class:models.py:ScrapedService",
+        "class:models.py:ContentAsset",
+        "class:models.py:BrandIdentity",
+        "class:models.py:VisualBranding",
+        "class:models.py:SeoSocial",
+        "class:models.py:SocialLinks",
+        "class:models.py:ContactInfo",
+        "class:models.py:SmartScrapeResponse",
+        "class:models.py:MarketingPostRequest",
+        "class:models.py:CompleteImageResponse",
+        "class:models.py:PromptOption",
+        "class:models.py:PromptEnhancerResponse",
+        "class:models.py:RegenerateImageResponse"
+      ]
+    }
+  },
+  "nodeSummaryIndex": {
+    "file:campaign.py": {
+      "name": "campaign.py",
+      "type": "file",
+      "summary": "Handles AI-driven marketing campaign generation, orchestrating post creation and storage.",
+      "tags": [
+        "source"
+      ]
+    },
+    "function:campaign.py:create_campaign_router": {
+      "name": "create_campaign_router",
+      "type": "function",
+      "summary": "Function create_campaign_router in campaign.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:campaign.py:_get_campaign_goal_caption_direction": {
+      "name": "_get_campaign_goal_caption_direction",
+      "type": "function",
+      "summary": "Function _get_campaign_goal_caption_direction in campaign.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:campaign.py:_get_visual_approach": {
+      "name": "_get_visual_approach",
+      "type": "function",
+      "summary": "Function _get_visual_approach in campaign.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:campaign.py:_get_font_style": {
+      "name": "_get_font_style",
+      "type": "function",
+      "summary": "Function _get_font_style in campaign.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:campaign.py:_get_content_type_image_direction": {
+      "name": "_get_content_type_image_direction",
+      "type": "function",
+      "summary": "Function _get_content_type_image_direction in campaign.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:campaign.py:_get_content_type_caption_direction": {
+      "name": "_get_content_type_caption_direction",
+      "type": "function",
+      "summary": "Function _get_content_type_caption_direction in campaign.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:main.py": {
+      "name": "main.py",
+      "type": "file",
+      "summary": "Entry point for the FastAPI application, configuring routers and static file hosting.",
+      "tags": [
+        "source",
+        "entry-point"
+      ]
+    },
+    "file:models.py": {
+      "name": "models.py",
+      "type": "file",
+      "summary": "Defines the Pydantic data models and Enums for the system's data contracts.",
+      "tags": [
+        "source",
+        "data-model"
+      ]
+    },
+    "class:models.py:CampaignGoal": {
+      "name": "CampaignGoal",
+      "type": "class",
+      "summary": "Class CampaignGoal in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:ContentType": {
+      "name": "ContentType",
+      "type": "class",
+      "summary": "Class ContentType in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:ContentStrategy": {
+      "name": "ContentStrategy",
+      "type": "class",
+      "summary": "Class ContentStrategy in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:PostingGoal": {
+      "name": "PostingGoal",
+      "type": "class",
+      "summary": "Class PostingGoal in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:ContentGenerationMode": {
+      "name": "ContentGenerationMode",
+      "type": "class",
+      "summary": "Class ContentGenerationMode in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:MediaType": {
+      "name": "MediaType",
+      "type": "class",
+      "summary": "Class MediaType in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:Feature": {
+      "name": "Feature",
+      "type": "class",
+      "summary": "Class Feature in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:RequiredSkill": {
+      "name": "RequiredSkill",
+      "type": "class",
+      "summary": "Class RequiredSkill in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:CampaignProduct": {
+      "name": "CampaignProduct",
+      "type": "class",
+      "summary": "Class CampaignProduct in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:CampaignService": {
+      "name": "CampaignService",
+      "type": "class",
+      "summary": "Class CampaignService in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:GeneratedPost": {
+      "name": "GeneratedPost",
+      "type": "class",
+      "summary": "Class GeneratedPost in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:CampaignResponse": {
+      "name": "CampaignResponse",
+      "type": "class",
+      "summary": "Class CampaignResponse in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:SmartPostCaption": {
+      "name": "SmartPostCaption",
+      "type": "class",
+      "summary": "Class SmartPostCaption in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:SmartPostImage": {
+      "name": "SmartPostImage",
+      "type": "class",
+      "summary": "Class SmartPostImage in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:SmartPostResponse": {
+      "name": "SmartPostResponse",
+      "type": "class",
+      "summary": "Class SmartPostResponse in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:TargetAudienceSegment": {
+      "name": "TargetAudienceSegment",
+      "type": "class",
+      "summary": "Class TargetAudienceSegment in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:ProductFeature": {
+      "name": "ProductFeature",
+      "type": "class",
+      "summary": "Class ProductFeature in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:ScrapedProduct": {
+      "name": "ScrapedProduct",
+      "type": "class",
+      "summary": "Class ScrapedProduct in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:ServiceBenefit": {
+      "name": "ServiceBenefit",
+      "type": "class",
+      "summary": "Class ServiceBenefit in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:ServiceSkill": {
+      "name": "ServiceSkill",
+      "type": "class",
+      "summary": "Class ServiceSkill in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:ScrapedService": {
+      "name": "ScrapedService",
+      "type": "class",
+      "summary": "Class ScrapedService in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:ContentAsset": {
+      "name": "ContentAsset",
+      "type": "class",
+      "summary": "Class ContentAsset in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:BrandIdentity": {
+      "name": "BrandIdentity",
+      "type": "class",
+      "summary": "Class BrandIdentity in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:VisualBranding": {
+      "name": "VisualBranding",
+      "type": "class",
+      "summary": "Class VisualBranding in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:SeoSocial": {
+      "name": "SeoSocial",
+      "type": "class",
+      "summary": "Class SeoSocial in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:SocialLinks": {
+      "name": "SocialLinks",
+      "type": "class",
+      "summary": "Class SocialLinks in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:ContactInfo": {
+      "name": "ContactInfo",
+      "type": "class",
+      "summary": "Class ContactInfo in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:SmartScrapeResponse": {
+      "name": "SmartScrapeResponse",
+      "type": "class",
+      "summary": "Class SmartScrapeResponse in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:MarketingPostRequest": {
+      "name": "MarketingPostRequest",
+      "type": "class",
+      "summary": "Class MarketingPostRequest in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:CompleteImageResponse": {
+      "name": "CompleteImageResponse",
+      "type": "class",
+      "summary": "Class CompleteImageResponse in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:PromptOption": {
+      "name": "PromptOption",
+      "type": "class",
+      "summary": "Class PromptOption in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:PromptEnhancerResponse": {
+      "name": "PromptEnhancerResponse",
+      "type": "class",
+      "summary": "Class PromptEnhancerResponse in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:models.py:RegenerateImageResponse": {
+      "name": "RegenerateImageResponse",
+      "type": "class",
+      "summary": "Class RegenerateImageResponse in models.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "file:prompt_enhancer.py": {
+      "name": "prompt_enhancer.py",
+      "type": "file",
+      "summary": "Source file for prompt_enhancer.py.",
+      "tags": [
+        "source"
+      ]
+    },
+    "function:prompt_enhancer.py:create_prompt_enhancer_router": {
+      "name": "create_prompt_enhancer_router",
+      "type": "function",
+      "summary": "Function create_prompt_enhancer_router in prompt_enhancer.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:prompt_guards.py": {
+      "name": "prompt_guards.py",
+      "type": "file",
+      "summary": "Source file for prompt_guards.py.",
+      "tags": [
+        "source"
+      ]
+    },
+    "file:regenerate.py": {
+      "name": "regenerate.py",
+      "type": "file",
+      "summary": "Source file for regenerate.py.",
+      "tags": [
+        "source"
+      ]
+    },
+    "function:regenerate.py:_upload_to_cloudinary": {
+      "name": "_upload_to_cloudinary",
+      "type": "function",
+      "summary": "Function _upload_to_cloudinary in regenerate.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:regenerate.py:create_regenerate_router": {
+      "name": "create_regenerate_router",
+      "type": "function",
+      "summary": "Function create_regenerate_router in regenerate.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:scraper_agents/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/__init__.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent"
+      ]
+    },
+    "file:scraper_agents/agents/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/agents/__init__.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent"
+      ]
+    },
+    "file:scraper_agents/agents/base.py": {
+      "name": "base.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/agents/base.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "data-model"
+      ]
+    },
+    "function:scraper_agents/agents/base.py:__init__": {
+      "name": "__init__",
+      "type": "function",
+      "summary": "Function __init__ in scraper_agents/agents/base.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/base.py:track_usage": {
+      "name": "track_usage",
+      "type": "function",
+      "summary": "Function track_usage in scraper_agents/agents/base.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "class:scraper_agents/agents/base.py:BaseAgent": {
+      "name": "BaseAgent",
+      "type": "class",
+      "summary": "Class BaseAgent in scraper_agents/agents/base.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "file:scraper_agents/agents/brand_intelligence.py": {
+      "name": "brand_intelligence.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/agents/brand_intelligence.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "data-model"
+      ]
+    },
+    "function:scraper_agents/agents/brand_intelligence.py:_extract_json": {
+      "name": "_extract_json",
+      "type": "function",
+      "summary": "Function _extract_json in scraper_agents/agents/brand_intelligence.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/brand_intelligence.py:_format_products": {
+      "name": "_format_products",
+      "type": "function",
+      "summary": "Function _format_products in scraper_agents/agents/brand_intelligence.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/brand_intelligence.py:_format_services": {
+      "name": "_format_services",
+      "type": "function",
+      "summary": "Function _format_services in scraper_agents/agents/brand_intelligence.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "class:scraper_agents/agents/brand_intelligence.py:BrandIntelligenceAgent": {
+      "name": "BrandIntelligenceAgent",
+      "type": "class",
+      "summary": "Class BrandIntelligenceAgent in scraper_agents/agents/brand_intelligence.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "file:scraper_agents/agents/contact.py": {
+      "name": "contact.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/agents/contact.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "data-model"
+      ]
+    },
+    "function:scraper_agents/agents/contact.py:_get_page_soup": {
+      "name": "_get_page_soup",
+      "type": "function",
+      "summary": "Function _get_page_soup in scraper_agents/agents/contact.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/contact.py:_merge_social": {
+      "name": "_merge_social",
+      "type": "function",
+      "summary": "Function _merge_social in scraper_agents/agents/contact.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/contact.py:_merge_contact": {
+      "name": "_merge_contact",
+      "type": "function",
+      "summary": "Function _merge_contact in scraper_agents/agents/contact.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "class:scraper_agents/agents/contact.py:ContactSocialAgent": {
+      "name": "ContactSocialAgent",
+      "type": "class",
+      "summary": "Class ContactSocialAgent in scraper_agents/agents/contact.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "file:scraper_agents/agents/content.py": {
+      "name": "content.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/agents/content.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "data-model"
+      ]
+    },
+    "function:scraper_agents/agents/content.py:_collect_content_pages": {
+      "name": "_collect_content_pages",
+      "type": "function",
+      "summary": "Function _collect_content_pages in scraper_agents/agents/content.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/content.py:_get_page_soup": {
+      "name": "_get_page_soup",
+      "type": "function",
+      "summary": "Function _get_page_soup in scraper_agents/agents/content.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "class:scraper_agents/agents/content.py:ContentAssetsAgent": {
+      "name": "ContentAssetsAgent",
+      "type": "class",
+      "summary": "Class ContentAssetsAgent in scraper_agents/agents/content.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "file:scraper_agents/agents/crawler.py": {
+      "name": "crawler.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/agents/crawler.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "data-model"
+      ]
+    },
+    "function:scraper_agents/agents/crawler.py:_extract_image_products": {
+      "name": "_extract_image_products",
+      "type": "function",
+      "summary": "Function _extract_image_products in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/crawler.py:_clean_image_product_name": {
+      "name": "_clean_image_product_name",
+      "type": "function",
+      "summary": "Function _clean_image_product_name in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/crawler.py:_match_product_image_urls": {
+      "name": "_match_product_image_urls",
+      "type": "function",
+      "summary": "Function _match_product_image_urls in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/crawler.py:_pw_extract_colors": {
+      "name": "_pw_extract_colors",
+      "type": "function",
+      "summary": "Function _pw_extract_colors in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/crawler.py:_parse_sitemap": {
+      "name": "_parse_sitemap",
+      "type": "function",
+      "summary": "Function _parse_sitemap in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/crawler.py:_parse_sitemap_xml": {
+      "name": "_parse_sitemap_xml",
+      "type": "function",
+      "summary": "Function _parse_sitemap_xml in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/crawler.py:_find_brand_shop_urls": {
+      "name": "_find_brand_shop_urls",
+      "type": "function",
+      "summary": "Function _find_brand_shop_urls in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/crawler.py:_fallback_classify": {
+      "name": "_fallback_classify",
+      "type": "function",
+      "summary": "Function _fallback_classify in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/crawler.py:_match_product_images": {
+      "name": "_match_product_images",
+      "type": "function",
+      "summary": "Function _match_product_images in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/crawler.py:_render": {
+      "name": "_render",
+      "type": "function",
+      "summary": "Function _render in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/crawler.py:_take_screenshot": {
+      "name": "_take_screenshot",
+      "type": "function",
+      "summary": "Function _take_screenshot in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "class:scraper_agents/agents/crawler.py:CrawlerAgent": {
+      "name": "CrawlerAgent",
+      "type": "class",
+      "summary": "Class CrawlerAgent in scraper_agents/agents/crawler.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "file:scraper_agents/agents/logo.py": {
+      "name": "logo.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/agents/logo.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "data-model"
+      ]
+    },
+    "function:scraper_agents/agents/logo.py:_download_logo": {
+      "name": "_download_logo",
+      "type": "function",
+      "summary": "Function _download_logo in scraper_agents/agents/logo.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/logo.py:_handle_data_uri_svg": {
+      "name": "_handle_data_uri_svg",
+      "type": "function",
+      "summary": "Function _handle_data_uri_svg in scraper_agents/agents/logo.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/logo.py:_save_logo": {
+      "name": "_save_logo",
+      "type": "function",
+      "summary": "Function _save_logo in scraper_agents/agents/logo.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/logo.py:_upload_to_cloudinary": {
+      "name": "_upload_to_cloudinary",
+      "type": "function",
+      "summary": "Function _upload_to_cloudinary in scraper_agents/agents/logo.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/logo.py:_extract_logo_candidates_from_soup": {
+      "name": "_extract_logo_candidates_from_soup",
+      "type": "function",
+      "summary": "Function _extract_logo_candidates_from_soup in scraper_agents/agents/logo.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/logo.py:_find_ancestor_href": {
+      "name": "_find_ancestor_href",
+      "type": "function",
+      "summary": "Function _find_ancestor_href in scraper_agents/agents/logo.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/logo.py:_extract_favicon_from_soup": {
+      "name": "_extract_favicon_from_soup",
+      "type": "function",
+      "summary": "Function _extract_favicon_from_soup in scraper_agents/agents/logo.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/logo.py:_render_page": {
+      "name": "_render_page",
+      "type": "function",
+      "summary": "Function _render_page in scraper_agents/agents/logo.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "class:scraper_agents/agents/logo.py:LogoAgent": {
+      "name": "LogoAgent",
+      "type": "class",
+      "summary": "Class LogoAgent in scraper_agents/agents/logo.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "file:scraper_agents/agents/products.py": {
+      "name": "products.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/agents/products.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "data-model"
+      ]
+    },
+    "function:scraper_agents/agents/products.py:_extract_from_cached": {
+      "name": "_extract_from_cached",
+      "type": "function",
+      "summary": "Function _extract_from_cached in scraper_agents/agents/products.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/products.py:_filter_product_images": {
+      "name": "_filter_product_images",
+      "type": "function",
+      "summary": "Function _filter_product_images in scraper_agents/agents/products.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/products.py:_filter_placeholder_images": {
+      "name": "_filter_placeholder_images",
+      "type": "function",
+      "summary": "Function _filter_placeholder_images in scraper_agents/agents/products.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/products.py:_scrape_all": {
+      "name": "_scrape_all",
+      "type": "function",
+      "summary": "Function _scrape_all in scraper_agents/agents/products.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "class:scraper_agents/agents/products.py:ProductAgent": {
+      "name": "ProductAgent",
+      "type": "class",
+      "summary": "Class ProductAgent in scraper_agents/agents/products.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "file:scraper_agents/agents/visual.py": {
+      "name": "visual.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/agents/visual.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "data-model"
+      ]
+    },
+    "function:scraper_agents/agents/visual.py:_merge_color_lists": {
+      "name": "_merge_color_lists",
+      "type": "function",
+      "summary": "Function _merge_color_lists in scraper_agents/agents/visual.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/visual.py:_resolve_brand_colors": {
+      "name": "_resolve_brand_colors",
+      "type": "function",
+      "summary": "Function _resolve_brand_colors in scraper_agents/agents/visual.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/visual.py:_is_brand_custom_font": {
+      "name": "_is_brand_custom_font",
+      "type": "function",
+      "summary": "Function _is_brand_custom_font in scraper_agents/agents/visual.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/visual.py:_resolve_fonts": {
+      "name": "_resolve_fonts",
+      "type": "function",
+      "summary": "Function _resolve_fonts in scraper_agents/agents/visual.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "class:scraper_agents/agents/visual.py:VisualIdentityAgent": {
+      "name": "VisualIdentityAgent",
+      "type": "class",
+      "summary": "Class VisualIdentityAgent in scraper_agents/agents/visual.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "file:scraper_agents/agents/web_search.py": {
+      "name": "web_search.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/agents/web_search.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "data-model"
+      ]
+    },
+    "function:scraper_agents/agents/web_search.py:_extract_json": {
+      "name": "_extract_json",
+      "type": "function",
+      "summary": "Function _extract_json in scraper_agents/agents/web_search.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/web_search.py:_find_gaps": {
+      "name": "_find_gaps",
+      "type": "function",
+      "summary": "Function _find_gaps in scraper_agents/agents/web_search.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/web_search.py:_apply_fills": {
+      "name": "_apply_fills",
+      "type": "function",
+      "summary": "Function _apply_fills in scraper_agents/agents/web_search.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/agents/web_search.py:_match_websearch_product_images": {
+      "name": "_match_websearch_product_images",
+      "type": "function",
+      "summary": "Function _match_websearch_product_images in scraper_agents/agents/web_search.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "class:scraper_agents/agents/web_search.py:WebSearchAgent": {
+      "name": "WebSearchAgent",
+      "type": "class",
+      "summary": "Class WebSearchAgent in scraper_agents/agents/web_search.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "file:scraper_agents/config.py": {
+      "name": "config.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/config.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent"
+      ]
+    },
+    "file:scraper_agents/extractors/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/extractors/__init__.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "extractor"
+      ]
+    },
+    "file:scraper_agents/extractors/color_extraction.py": {
+      "name": "color_extraction.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/extractors/color_extraction.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "extractor"
+      ]
+    },
+    "function:scraper_agents/extractors/color_extraction.py:filter_boring_colors_relaxed": {
+      "name": "filter_boring_colors_relaxed",
+      "type": "function",
+      "summary": "Function filter_boring_colors_relaxed in scraper_agents/extractors/color_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/color_extraction.py:kmeans_dominant_colors": {
+      "name": "kmeans_dominant_colors",
+      "type": "function",
+      "summary": "Function kmeans_dominant_colors in scraper_agents/extractors/color_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/color_extraction.py:extract_colors_from_logo": {
+      "name": "extract_colors_from_logo",
+      "type": "function",
+      "summary": "Function extract_colors_from_logo in scraper_agents/extractors/color_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/color_extraction.py:extract_colors_from_screenshot_kmeans": {
+      "name": "extract_colors_from_screenshot_kmeans",
+      "type": "function",
+      "summary": "Function extract_colors_from_screenshot_kmeans in scraper_agents/extractors/color_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/color_extraction.py:extract_colors_comprehensive": {
+      "name": "extract_colors_comprehensive",
+      "type": "function",
+      "summary": "Function extract_colors_comprehensive in scraper_agents/extractors/color_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/color_extraction.py:extract_colors_from_computed": {
+      "name": "extract_colors_from_computed",
+      "type": "function",
+      "summary": "Function extract_colors_from_computed in scraper_agents/extractors/color_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/color_extraction.py:_scan_css_variables": {
+      "name": "_scan_css_variables",
+      "type": "function",
+      "summary": "Function _scan_css_variables in scraper_agents/extractors/color_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:scraper_agents/extractors/contact_extraction.py": {
+      "name": "contact_extraction.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/extractors/contact_extraction.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "extractor"
+      ]
+    },
+    "function:scraper_agents/extractors/contact_extraction.py:_clean_social_url": {
+      "name": "_clean_social_url",
+      "type": "function",
+      "summary": "Function _clean_social_url in scraper_agents/extractors/contact_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/contact_extraction.py:extract_social_links": {
+      "name": "extract_social_links",
+      "type": "function",
+      "summary": "Function extract_social_links in scraper_agents/extractors/contact_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/contact_extraction.py:extract_contact_info": {
+      "name": "extract_contact_info",
+      "type": "function",
+      "summary": "Function extract_contact_info in scraper_agents/extractors/contact_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:scraper_agents/extractors/content_parsing.py": {
+      "name": "content_parsing.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/extractors/content_parsing.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "extractor"
+      ]
+    },
+    "function:scraper_agents/extractors/content_parsing.py:_find_item_link": {
+      "name": "_find_item_link",
+      "type": "function",
+      "summary": "Function _find_item_link in scraper_agents/extractors/content_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/content_parsing.py:extract_content_assets": {
+      "name": "extract_content_assets",
+      "type": "function",
+      "summary": "Function extract_content_assets in scraper_agents/extractors/content_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/content_parsing.py:enrich_content_assets": {
+      "name": "enrich_content_assets",
+      "type": "function",
+      "summary": "Function enrich_content_assets in scraper_agents/extractors/content_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/content_parsing.py:_add_asset": {
+      "name": "_add_asset",
+      "type": "function",
+      "summary": "Function _add_asset in scraper_agents/extractors/content_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/content_parsing.py:_fetch_and_extract": {
+      "name": "_fetch_and_extract",
+      "type": "function",
+      "summary": "Function _fetch_and_extract in scraper_agents/extractors/content_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:scraper_agents/extractors/font_extraction.py": {
+      "name": "font_extraction.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/extractors/font_extraction.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "extractor"
+      ]
+    },
+    "function:scraper_agents/extractors/font_extraction.py:extract_fonts_comprehensive": {
+      "name": "extract_fonts_comprehensive",
+      "type": "function",
+      "summary": "Function extract_fonts_comprehensive in scraper_agents/extractors/font_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/font_extraction.py:_add_font": {
+      "name": "_add_font",
+      "type": "function",
+      "summary": "Function _add_font in scraper_agents/extractors/font_extraction.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:scraper_agents/extractors/html_helpers.py": {
+      "name": "html_helpers.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/extractors/html_helpers.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "extractor"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:is_home_like_href": {
+      "name": "is_home_like_href",
+      "type": "function",
+      "summary": "Function is_home_like_href in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:extract_nav_links": {
+      "name": "extract_nav_links",
+      "type": "function",
+      "summary": "Function extract_nav_links in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:extract_jsonld": {
+      "name": "extract_jsonld",
+      "type": "function",
+      "summary": "Function extract_jsonld in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:extract_jsonld_logo": {
+      "name": "extract_jsonld_logo",
+      "type": "function",
+      "summary": "Function extract_jsonld_logo in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:extract_jsonld_products": {
+      "name": "extract_jsonld_products",
+      "type": "function",
+      "summary": "Function extract_jsonld_products in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:extract_favicon": {
+      "name": "extract_favicon",
+      "type": "function",
+      "summary": "Function extract_favicon in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:extract_all_images": {
+      "name": "extract_all_images",
+      "type": "function",
+      "summary": "Function extract_all_images in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:_extract_name_from_link": {
+      "name": "_extract_name_from_link",
+      "type": "function",
+      "summary": "Function _extract_name_from_link in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:extract_nav_products": {
+      "name": "extract_nav_products",
+      "type": "function",
+      "summary": "Function extract_nav_products in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:nav_products_are_taxonomy": {
+      "name": "nav_products_are_taxonomy",
+      "type": "function",
+      "summary": "Function nav_products_are_taxonomy in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:nav_products_are_verticals": {
+      "name": "nav_products_are_verticals",
+      "type": "function",
+      "summary": "Function nav_products_are_verticals in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:_parse_product": {
+      "name": "_parse_product",
+      "type": "function",
+      "summary": "Function _parse_product in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:_extract_price_from_offer": {
+      "name": "_extract_price_from_offer",
+      "type": "function",
+      "summary": "Function _extract_price_from_offer in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:_process_node": {
+      "name": "_process_node",
+      "type": "function",
+      "summary": "Function _process_node in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/html_helpers.py:_add": {
+      "name": "_add",
+      "type": "function",
+      "summary": "Function _add in scraper_agents/extractors/html_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:scraper_agents/extractors/image_helpers.py": {
+      "name": "image_helpers.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/extractors/image_helpers.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "extractor"
+      ]
+    },
+    "function:scraper_agents/extractors/image_helpers.py:score_logo_candidate": {
+      "name": "score_logo_candidate",
+      "type": "function",
+      "summary": "Function score_logo_candidate in scraper_agents/extractors/image_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/image_helpers.py:rank_logo_candidates": {
+      "name": "rank_logo_candidates",
+      "type": "function",
+      "summary": "Function rank_logo_candidates in scraper_agents/extractors/image_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/image_helpers.py:is_icon_image": {
+      "name": "is_icon_image",
+      "type": "function",
+      "summary": "Function is_icon_image in scraper_agents/extractors/image_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/image_helpers.py:validate_logo_image": {
+      "name": "validate_logo_image",
+      "type": "function",
+      "summary": "Function validate_logo_image in scraper_agents/extractors/image_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/image_helpers.py:convert_svg_to_png": {
+      "name": "convert_svg_to_png",
+      "type": "function",
+      "summary": "Function convert_svg_to_png in scraper_agents/extractors/image_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/image_helpers.py:_render": {
+      "name": "_render",
+      "type": "function",
+      "summary": "Function _render in scraper_agents/extractors/image_helpers.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:scraper_agents/extractors/product_parsing.py": {
+      "name": "product_parsing.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/extractors/product_parsing.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "extractor"
+      ]
+    },
+    "function:scraper_agents/extractors/product_parsing.py:_extract_price": {
+      "name": "_extract_price",
+      "type": "function",
+      "summary": "Function _extract_price in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/product_parsing.py:parse_sitemap": {
+      "name": "parse_sitemap",
+      "type": "function",
+      "summary": "Function parse_sitemap in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/product_parsing.py:_parse_sitemap_xml": {
+      "name": "_parse_sitemap_xml",
+      "type": "function",
+      "summary": "Function _parse_sitemap_xml in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/product_parsing.py:is_product_detail_url": {
+      "name": "is_product_detail_url",
+      "type": "function",
+      "summary": "Function is_product_detail_url in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/product_parsing.py:extract_products_from_soup": {
+      "name": "extract_products_from_soup",
+      "type": "function",
+      "summary": "Function extract_products_from_soup in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/product_parsing.py:scrape_product_detail": {
+      "name": "scrape_product_detail",
+      "type": "function",
+      "summary": "Function scrape_product_detail in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/product_parsing.py:scrape_product_catalog": {
+      "name": "scrape_product_catalog",
+      "type": "function",
+      "summary": "Function scrape_product_catalog in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/product_parsing.py:_get_img_url": {
+      "name": "_get_img_url",
+      "type": "function",
+      "summary": "Function _get_img_url in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/extractors/product_parsing.py:_find_next_page_url": {
+      "name": "_find_next_page_url",
+      "type": "function",
+      "summary": "Function _find_next_page_url in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:scraper_agents/orchestrator.py": {
+      "name": "orchestrator.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/orchestrator.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "entry-point"
+      ]
+    },
+    "function:scraper_agents/orchestrator.py:_load_job": {
+      "name": "_load_job",
+      "type": "function",
+      "summary": "Function _load_job in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/orchestrator.py:_cleanup_old_jobs": {
+      "name": "_cleanup_old_jobs",
+      "type": "function",
+      "summary": "Function _cleanup_old_jobs in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/orchestrator.py:create_agentic_scraper_router": {
+      "name": "create_agentic_scraper_router",
+      "type": "function",
+      "summary": "Function create_agentic_scraper_router in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/orchestrator.py:_assemble_response": {
+      "name": "_assemble_response",
+      "type": "function",
+      "summary": "Function _assemble_response in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/orchestrator.py:_save_metadata": {
+      "name": "_save_metadata",
+      "type": "function",
+      "summary": "Function _save_metadata in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:scraper_agents/orchestrator.py:_str_field": {
+      "name": "_str_field",
+      "type": "function",
+      "summary": "Function _str_field in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:scraper_agents/prompts/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/__init__.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ]
+    },
+    "file:scraper_agents/prompts/brand_analysis.py": {
+      "name": "brand_analysis.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/brand_analysis.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ]
+    },
+    "file:scraper_agents/prompts/color_verification.py": {
+      "name": "color_verification.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/color_verification.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ]
+    },
+    "file:scraper_agents/prompts/content_analysis.py": {
+      "name": "content_analysis.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/content_analysis.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ]
+    },
+    "file:scraper_agents/prompts/gap_fill.py": {
+      "name": "gap_fill.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/gap_fill.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ]
+    },
+    "file:scraper_agents/prompts/image_classification.py": {
+      "name": "image_classification.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/image_classification.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ]
+    },
+    "file:scraper_agents/prompts/logo_search.py": {
+      "name": "logo_search.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/logo_search.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ]
+    },
+    "file:scraper_agents/prompts/site_classification.py": {
+      "name": "site_classification.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/site_classification.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ]
+    },
+    "file:scraper_agents/prompts/visual_analysis.py": {
+      "name": "visual_analysis.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/visual_analysis.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ]
+    },
+    "file:scraper_agents/prompts/visual_and_classify.py": {
+      "name": "visual_and_classify.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/visual_and_classify.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ]
+    },
+    "file:scraper_agents/state.py": {
+      "name": "state.py",
+      "type": "file",
+      "summary": "Specialized agent or extractor for scraper_agents/state.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "data-model"
+      ]
+    },
+    "class:scraper_agents/state.py:PageInfo": {
+      "name": "PageInfo",
+      "type": "class",
+      "summary": "Class PageInfo in scraper_agents/state.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "class:scraper_agents/state.py:ScrapeState": {
+      "name": "ScrapeState",
+      "type": "class",
+      "summary": "Class ScrapeState in scraper_agents/state.py.",
+      "tags": [
+        "class"
+      ]
+    },
+    "file:smartpost.py": {
+      "name": "smartpost.py",
+      "type": "file",
+      "summary": "Source file for smartpost.py.",
+      "tags": [
+        "source"
+      ]
+    },
+    "function:smartpost.py:_get_smartpost_visual_approach": {
+      "name": "_get_smartpost_visual_approach",
+      "type": "function",
+      "summary": "Function _get_smartpost_visual_approach in smartpost.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:smartpost.py:_get_smartpost_font_style": {
+      "name": "_get_smartpost_font_style",
+      "type": "function",
+      "summary": "Function _get_smartpost_font_style in smartpost.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:smartpost.py:_get_slide_roles": {
+      "name": "_get_slide_roles",
+      "type": "function",
+      "summary": "Function _get_slide_roles in smartpost.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:smartpost.py:_select_carousel_arc": {
+      "name": "_select_carousel_arc",
+      "type": "function",
+      "summary": "Function _select_carousel_arc in smartpost.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:smartpost.py:create_smartpost_router": {
+      "name": "create_smartpost_router",
+      "type": "function",
+      "summary": "Function create_smartpost_router in smartpost.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:smartpost.py:_get_posting_goal_context": {
+      "name": "_get_posting_goal_context",
+      "type": "function",
+      "summary": "Function _get_posting_goal_context in smartpost.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:smartpost.py:_save_smart_post_image": {
+      "name": "_save_smart_post_image",
+      "type": "function",
+      "summary": "Function _save_smart_post_image in smartpost.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:smartpost.py:_build_fallback_plan": {
+      "name": "_build_fallback_plan",
+      "type": "function",
+      "summary": "Function _build_fallback_plan in smartpost.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:smartpost.py:_build_festival_image_section": {
+      "name": "_build_festival_image_section",
+      "type": "function",
+      "summary": "Function _build_festival_image_section in smartpost.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:smartpost.py:_build_item_section": {
+      "name": "_build_item_section",
+      "type": "function",
+      "summary": "Function _build_item_section in smartpost.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "file:utils.py": {
+      "name": "utils.py",
+      "type": "file",
+      "summary": "General purpose utility functions for image processing, Gemini interactions, and I/O.",
+      "tags": [
+        "source"
+      ]
+    },
+    "function:utils.py:extract_gemini_text": {
+      "name": "extract_gemini_text",
+      "type": "function",
+      "summary": "Function extract_gemini_text in utils.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:utils.py:parse_product_features": {
+      "name": "parse_product_features",
+      "type": "function",
+      "summary": "Function parse_product_features in utils.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:utils.py:parse_service_benefits": {
+      "name": "parse_service_benefits",
+      "type": "function",
+      "summary": "Function parse_service_benefits in utils.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:utils.py:parse_service_skills": {
+      "name": "parse_service_skills",
+      "type": "function",
+      "summary": "Function parse_service_skills in utils.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:utils.py:resize_image_for_platform": {
+      "name": "resize_image_for_platform",
+      "type": "function",
+      "summary": "Function resize_image_for_platform in utils.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:utils.py:save_campaign_image": {
+      "name": "save_campaign_image",
+      "type": "function",
+      "summary": "Function save_campaign_image in utils.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:utils.py:download_reference_image": {
+      "name": "download_reference_image",
+      "type": "function",
+      "summary": "Function download_reference_image in utils.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:utils.py:process_uploaded_reference_image": {
+      "name": "process_uploaded_reference_image",
+      "type": "function",
+      "summary": "Function process_uploaded_reference_image in utils.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:utils.py:build_product_image_context": {
+      "name": "build_product_image_context",
+      "type": "function",
+      "summary": "Function build_product_image_context in utils.py.",
+      "tags": [
+        "function"
+      ]
+    },
+    "function:utils.py:generate_brand_awareness_items": {
+      "name": "generate_brand_awareness_items",
+      "type": "function",
+      "summary": "Function generate_brand_awareness_items in utils.py.",
+      "tags": [
+        "function"
+      ]
+    }
+  },
+  "totalNodes": 207
+}

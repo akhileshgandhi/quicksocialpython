@@ -1,0 +1,1006 @@
+{
+  "nodes": [
+    {
+      "id": "file:campaign.py",
+      "type": "file",
+      "name": "campaign.py",
+      "filePath": "campaign.py",
+      "summary": "Handles AI-driven marketing campaign generation, orchestrating post creation and storage.",
+      "tags": [
+        "source"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:campaign.py:create_campaign_router",
+      "type": "function",
+      "name": "create_campaign_router",
+      "filePath": "campaign.py",
+      "lineRange": [
+        35,
+        1461
+      ],
+      "summary": "Function create_campaign_router in campaign.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:campaign.py:_get_campaign_goal_caption_direction",
+      "type": "function",
+      "name": "_get_campaign_goal_caption_direction",
+      "filePath": "campaign.py",
+      "lineRange": [
+        95,
+        124
+      ],
+      "summary": "Function _get_campaign_goal_caption_direction in campaign.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:campaign.py:_get_visual_approach",
+      "type": "function",
+      "name": "_get_visual_approach",
+      "filePath": "campaign.py",
+      "lineRange": [
+        126,
+        156
+      ],
+      "summary": "Function _get_visual_approach in campaign.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:campaign.py:_get_font_style",
+      "type": "function",
+      "name": "_get_font_style",
+      "filePath": "campaign.py",
+      "lineRange": [
+        158,
+        173
+      ],
+      "summary": "Function _get_font_style in campaign.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:campaign.py:_get_content_type_image_direction",
+      "type": "function",
+      "name": "_get_content_type_image_direction",
+      "filePath": "campaign.py",
+      "lineRange": [
+        175,
+        204
+      ],
+      "summary": "Function _get_content_type_image_direction in campaign.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:campaign.py:_get_content_type_caption_direction",
+      "type": "function",
+      "name": "_get_content_type_caption_direction",
+      "filePath": "campaign.py",
+      "lineRange": [
+        206,
+        235
+      ],
+      "summary": "Function _get_content_type_caption_direction in campaign.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:main.py",
+      "type": "file",
+      "name": "main.py",
+      "filePath": "main.py",
+      "summary": "Entry point for the FastAPI application, configuring routers and static file hosting.",
+      "tags": [
+        "source",
+        "entry-point"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:models.py",
+      "type": "file",
+      "name": "models.py",
+      "filePath": "models.py",
+      "summary": "Defines the Pydantic data models and Enums for the system's data contracts.",
+      "tags": [
+        "source",
+        "data-model"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:models.py:CampaignGoal",
+      "type": "class",
+      "name": "CampaignGoal",
+      "filePath": "models.py",
+      "lineRange": [
+        17,
+        23
+      ],
+      "summary": "Class CampaignGoal in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:ContentType",
+      "type": "class",
+      "name": "ContentType",
+      "filePath": "models.py",
+      "lineRange": [
+        26,
+        32
+      ],
+      "summary": "Class ContentType in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:ContentStrategy",
+      "type": "class",
+      "name": "ContentStrategy",
+      "filePath": "models.py",
+      "lineRange": [
+        35,
+        38
+      ],
+      "summary": "Class ContentStrategy in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:PostingGoal",
+      "type": "class",
+      "name": "PostingGoal",
+      "filePath": "models.py",
+      "lineRange": [
+        45,
+        51
+      ],
+      "summary": "Class PostingGoal in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:ContentGenerationMode",
+      "type": "class",
+      "name": "ContentGenerationMode",
+      "filePath": "models.py",
+      "lineRange": [
+        54,
+        58
+      ],
+      "summary": "Class ContentGenerationMode in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:MediaType",
+      "type": "class",
+      "name": "MediaType",
+      "filePath": "models.py",
+      "lineRange": [
+        61,
+        64
+      ],
+      "summary": "Class MediaType in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:Feature",
+      "type": "class",
+      "name": "Feature",
+      "filePath": "models.py",
+      "lineRange": [
+        129,
+        132
+      ],
+      "summary": "Class Feature in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:RequiredSkill",
+      "type": "class",
+      "name": "RequiredSkill",
+      "filePath": "models.py",
+      "lineRange": [
+        135,
+        138
+      ],
+      "summary": "Class RequiredSkill in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:CampaignProduct",
+      "type": "class",
+      "name": "CampaignProduct",
+      "filePath": "models.py",
+      "lineRange": [
+        141,
+        156
+      ],
+      "summary": "Class CampaignProduct in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:CampaignService",
+      "type": "class",
+      "name": "CampaignService",
+      "filePath": "models.py",
+      "lineRange": [
+        159,
+        174
+      ],
+      "summary": "Class CampaignService in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:GeneratedPost",
+      "type": "class",
+      "name": "GeneratedPost",
+      "filePath": "models.py",
+      "lineRange": [
+        177,
+        190
+      ],
+      "summary": "Class GeneratedPost in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:CampaignResponse",
+      "type": "class",
+      "name": "CampaignResponse",
+      "filePath": "models.py",
+      "lineRange": [
+        193,
+        204
+      ],
+      "summary": "Class CampaignResponse in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:SmartPostCaption",
+      "type": "class",
+      "name": "SmartPostCaption",
+      "filePath": "models.py",
+      "lineRange": [
+        211,
+        215
+      ],
+      "summary": "Class SmartPostCaption in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:SmartPostImage",
+      "type": "class",
+      "name": "SmartPostImage",
+      "filePath": "models.py",
+      "lineRange": [
+        218,
+        224
+      ],
+      "summary": "Class SmartPostImage in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:SmartPostResponse",
+      "type": "class",
+      "name": "SmartPostResponse",
+      "filePath": "models.py",
+      "lineRange": [
+        227,
+        251
+      ],
+      "summary": "Class SmartPostResponse in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:TargetAudienceSegment",
+      "type": "class",
+      "name": "TargetAudienceSegment",
+      "filePath": "models.py",
+      "lineRange": [
+        258,
+        262
+      ],
+      "summary": "Class TargetAudienceSegment in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:ProductFeature",
+      "type": "class",
+      "name": "ProductFeature",
+      "filePath": "models.py",
+      "lineRange": [
+        265,
+        268
+      ],
+      "summary": "Class ProductFeature in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:ScrapedProduct",
+      "type": "class",
+      "name": "ScrapedProduct",
+      "filePath": "models.py",
+      "lineRange": [
+        271,
+        280
+      ],
+      "summary": "Class ScrapedProduct in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:ServiceBenefit",
+      "type": "class",
+      "name": "ServiceBenefit",
+      "filePath": "models.py",
+      "lineRange": [
+        283,
+        286
+      ],
+      "summary": "Class ServiceBenefit in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:ServiceSkill",
+      "type": "class",
+      "name": "ServiceSkill",
+      "filePath": "models.py",
+      "lineRange": [
+        289,
+        292
+      ],
+      "summary": "Class ServiceSkill in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:ScrapedService",
+      "type": "class",
+      "name": "ScrapedService",
+      "filePath": "models.py",
+      "lineRange": [
+        295,
+        307
+      ],
+      "summary": "Class ScrapedService in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:ContentAsset",
+      "type": "class",
+      "name": "ContentAsset",
+      "filePath": "models.py",
+      "lineRange": [
+        310,
+        319
+      ],
+      "summary": "Class ContentAsset in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:BrandIdentity",
+      "type": "class",
+      "name": "BrandIdentity",
+      "filePath": "models.py",
+      "lineRange": [
+        322,
+        340
+      ],
+      "summary": "Class BrandIdentity in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:VisualBranding",
+      "type": "class",
+      "name": "VisualBranding",
+      "filePath": "models.py",
+      "lineRange": [
+        343,
+        352
+      ],
+      "summary": "Class VisualBranding in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:SeoSocial",
+      "type": "class",
+      "name": "SeoSocial",
+      "filePath": "models.py",
+      "lineRange": [
+        355,
+        359
+      ],
+      "summary": "Class SeoSocial in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:SocialLinks",
+      "type": "class",
+      "name": "SocialLinks",
+      "filePath": "models.py",
+      "lineRange": [
+        362,
+        372
+      ],
+      "summary": "Class SocialLinks in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:ContactInfo",
+      "type": "class",
+      "name": "ContactInfo",
+      "filePath": "models.py",
+      "lineRange": [
+        375,
+        380
+      ],
+      "summary": "Class ContactInfo in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:SmartScrapeResponse",
+      "type": "class",
+      "name": "SmartScrapeResponse",
+      "filePath": "models.py",
+      "lineRange": [
+        383,
+        414
+      ],
+      "summary": "Class SmartScrapeResponse in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:MarketingPostRequest",
+      "type": "class",
+      "name": "MarketingPostRequest",
+      "filePath": "models.py",
+      "lineRange": [
+        422,
+        446
+      ],
+      "summary": "Class MarketingPostRequest in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:CompleteImageResponse",
+      "type": "class",
+      "name": "CompleteImageResponse",
+      "filePath": "models.py",
+      "lineRange": [
+        449,
+        457
+      ],
+      "summary": "Class CompleteImageResponse in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:PromptOption",
+      "type": "class",
+      "name": "PromptOption",
+      "filePath": "models.py",
+      "lineRange": [
+        465,
+        468
+      ],
+      "summary": "Class PromptOption in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:PromptEnhancerResponse",
+      "type": "class",
+      "name": "PromptEnhancerResponse",
+      "filePath": "models.py",
+      "lineRange": [
+        471,
+        474
+      ],
+      "summary": "Class PromptEnhancerResponse in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:models.py:RegenerateImageResponse",
+      "type": "class",
+      "name": "RegenerateImageResponse",
+      "filePath": "models.py",
+      "lineRange": [
+        481,
+        490
+      ],
+      "summary": "Class RegenerateImageResponse in models.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:prompt_enhancer.py",
+      "type": "file",
+      "name": "prompt_enhancer.py",
+      "filePath": "prompt_enhancer.py",
+      "summary": "Source file for prompt_enhancer.py.",
+      "tags": [
+        "source"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:prompt_enhancer.py:create_prompt_enhancer_router",
+      "type": "function",
+      "name": "create_prompt_enhancer_router",
+      "filePath": "prompt_enhancer.py",
+      "lineRange": [
+        32,
+        325
+      ],
+      "summary": "Function create_prompt_enhancer_router in prompt_enhancer.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:prompt_guards.py",
+      "type": "file",
+      "name": "prompt_guards.py",
+      "filePath": "prompt_guards.py",
+      "summary": "Source file for prompt_guards.py.",
+      "tags": [
+        "source"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:campaign.py",
+      "target": "function:campaign.py:create_campaign_router",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:campaign.py",
+      "target": "function:campaign.py:_get_campaign_goal_caption_direction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:campaign.py",
+      "target": "function:campaign.py:_get_visual_approach",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:campaign.py",
+      "target": "function:campaign.py:_get_font_style",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:campaign.py",
+      "target": "function:campaign.py:_get_content_type_image_direction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:campaign.py",
+      "target": "function:campaign.py:_get_content_type_caption_direction",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:campaign.py",
+      "target": "file:models.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:campaign.py",
+      "target": "file:utils.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:campaign.py",
+      "target": "file:prompt_guards.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:main.py",
+      "target": "file:campaign.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:main.py",
+      "target": "file:smartpost.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:main.py",
+      "target": "file:scraper_agents/__init__.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:main.py",
+      "target": "file:prompt_enhancer.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:main.py",
+      "target": "file:regenerate.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:CampaignGoal",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:ContentType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:ContentStrategy",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:PostingGoal",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:ContentGenerationMode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:MediaType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:Feature",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:RequiredSkill",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:CampaignProduct",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:CampaignService",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:GeneratedPost",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:CampaignResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:SmartPostCaption",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:SmartPostImage",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:SmartPostResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:TargetAudienceSegment",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:ProductFeature",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:ScrapedProduct",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:ServiceBenefit",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:ServiceSkill",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:ScrapedService",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:ContentAsset",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:BrandIdentity",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:VisualBranding",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:SeoSocial",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:SocialLinks",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:ContactInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:SmartScrapeResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:MarketingPostRequest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:CompleteImageResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:PromptOption",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:PromptEnhancerResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:models.py",
+      "target": "class:models.py:RegenerateImageResponse",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:prompt_enhancer.py",
+      "target": "function:prompt_enhancer.py:create_prompt_enhancer_router",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:prompt_enhancer.py",
+      "target": "file:models.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

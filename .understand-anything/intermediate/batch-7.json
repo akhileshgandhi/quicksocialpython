@@ -1,0 +1,586 @@
+{
+  "nodes": [
+    {
+      "id": "file:scraper_agents/prompts/visual_analysis.py",
+      "type": "file",
+      "name": "visual_analysis.py",
+      "filePath": "scraper_agents/prompts/visual_analysis.py",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/visual_analysis.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scraper_agents/prompts/visual_and_classify.py",
+      "type": "file",
+      "name": "visual_and_classify.py",
+      "filePath": "scraper_agents/prompts/visual_and_classify.py",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/visual_and_classify.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scraper_agents/state.py",
+      "type": "file",
+      "name": "state.py",
+      "filePath": "scraper_agents/state.py",
+      "summary": "Specialized agent or extractor for scraper_agents/state.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "data-model"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:scraper_agents/state.py:PageInfo",
+      "type": "class",
+      "name": "PageInfo",
+      "filePath": "scraper_agents/state.py",
+      "lineRange": [
+        19,
+        24
+      ],
+      "summary": "Class PageInfo in scraper_agents/state.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:scraper_agents/state.py:ScrapeState",
+      "type": "class",
+      "name": "ScrapeState",
+      "filePath": "scraper_agents/state.py",
+      "lineRange": [
+        28,
+        117
+      ],
+      "summary": "Class ScrapeState in scraper_agents/state.py.",
+      "tags": [
+        "class"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:smartpost.py",
+      "type": "file",
+      "name": "smartpost.py",
+      "filePath": "smartpost.py",
+      "summary": "Source file for smartpost.py.",
+      "tags": [
+        "source"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:smartpost.py:_get_smartpost_visual_approach",
+      "type": "function",
+      "name": "_get_smartpost_visual_approach",
+      "filePath": "smartpost.py",
+      "lineRange": [
+        35,
+        58
+      ],
+      "summary": "Function _get_smartpost_visual_approach in smartpost.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:smartpost.py:_get_smartpost_font_style",
+      "type": "function",
+      "name": "_get_smartpost_font_style",
+      "filePath": "smartpost.py",
+      "lineRange": [
+        61,
+        76
+      ],
+      "summary": "Function _get_smartpost_font_style in smartpost.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:smartpost.py:_get_slide_roles",
+      "type": "function",
+      "name": "_get_slide_roles",
+      "filePath": "smartpost.py",
+      "lineRange": [
+        251,
+        348
+      ],
+      "summary": "Function _get_slide_roles in smartpost.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:smartpost.py:_select_carousel_arc",
+      "type": "function",
+      "name": "_select_carousel_arc",
+      "filePath": "smartpost.py",
+      "lineRange": [
+        351,
+        390
+      ],
+      "summary": "Function _select_carousel_arc in smartpost.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:smartpost.py:create_smartpost_router",
+      "type": "function",
+      "name": "create_smartpost_router",
+      "filePath": "smartpost.py",
+      "lineRange": [
+        393,
+        2429
+      ],
+      "summary": "Function create_smartpost_router in smartpost.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:smartpost.py:_get_posting_goal_context",
+      "type": "function",
+      "name": "_get_posting_goal_context",
+      "filePath": "smartpost.py",
+      "lineRange": [
+        430,
+        459
+      ],
+      "summary": "Function _get_posting_goal_context in smartpost.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:smartpost.py:_save_smart_post_image",
+      "type": "function",
+      "name": "_save_smart_post_image",
+      "filePath": "smartpost.py",
+      "lineRange": [
+        461,
+        538
+      ],
+      "summary": "Function _save_smart_post_image in smartpost.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:smartpost.py:_build_fallback_plan",
+      "type": "function",
+      "name": "_build_fallback_plan",
+      "filePath": "smartpost.py",
+      "lineRange": [
+        801,
+        825
+      ],
+      "summary": "Function _build_fallback_plan in smartpost.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:smartpost.py:_build_festival_image_section",
+      "type": "function",
+      "name": "_build_festival_image_section",
+      "filePath": "smartpost.py",
+      "lineRange": [
+        1194,
+        1211
+      ],
+      "summary": "Function _build_festival_image_section in smartpost.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:smartpost.py:_build_item_section",
+      "type": "function",
+      "name": "_build_item_section",
+      "filePath": "smartpost.py",
+      "lineRange": [
+        1519,
+        1559
+      ],
+      "summary": "Function _build_item_section in smartpost.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:utils.py",
+      "type": "file",
+      "name": "utils.py",
+      "filePath": "utils.py",
+      "summary": "General purpose utility functions for image processing, Gemini interactions, and I/O.",
+      "tags": [
+        "source"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:utils.py:extract_gemini_text",
+      "type": "function",
+      "name": "extract_gemini_text",
+      "filePath": "utils.py",
+      "lineRange": [
+        27,
+        75
+      ],
+      "summary": "Function extract_gemini_text in utils.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:utils.py:parse_product_features",
+      "type": "function",
+      "name": "parse_product_features",
+      "filePath": "utils.py",
+      "lineRange": [
+        93,
+        126
+      ],
+      "summary": "Function parse_product_features in utils.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:utils.py:parse_service_benefits",
+      "type": "function",
+      "name": "parse_service_benefits",
+      "filePath": "utils.py",
+      "lineRange": [
+        129,
+        162
+      ],
+      "summary": "Function parse_service_benefits in utils.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:utils.py:parse_service_skills",
+      "type": "function",
+      "name": "parse_service_skills",
+      "filePath": "utils.py",
+      "lineRange": [
+        165,
+        203
+      ],
+      "summary": "Function parse_service_skills in utils.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:utils.py:resize_image_for_platform",
+      "type": "function",
+      "name": "resize_image_for_platform",
+      "filePath": "utils.py",
+      "lineRange": [
+        211,
+        258
+      ],
+      "summary": "Function resize_image_for_platform in utils.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:utils.py:save_campaign_image",
+      "type": "function",
+      "name": "save_campaign_image",
+      "filePath": "utils.py",
+      "lineRange": [
+        261,
+        295
+      ],
+      "summary": "Function save_campaign_image in utils.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:utils.py:download_reference_image",
+      "type": "function",
+      "name": "download_reference_image",
+      "filePath": "utils.py",
+      "lineRange": [
+        302,
+        443
+      ],
+      "summary": "Function download_reference_image in utils.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:utils.py:process_uploaded_reference_image",
+      "type": "function",
+      "name": "process_uploaded_reference_image",
+      "filePath": "utils.py",
+      "lineRange": [
+        446,
+        526
+      ],
+      "summary": "Function process_uploaded_reference_image in utils.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:utils.py:build_product_image_context",
+      "type": "function",
+      "name": "build_product_image_context",
+      "filePath": "utils.py",
+      "lineRange": [
+        529,
+        604
+      ],
+      "summary": "Function build_product_image_context in utils.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:utils.py:generate_brand_awareness_items",
+      "type": "function",
+      "name": "generate_brand_awareness_items",
+      "filePath": "utils.py",
+      "lineRange": [
+        811,
+        856
+      ],
+      "summary": "Function generate_brand_awareness_items in utils.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:scraper_agents/state.py",
+      "target": "class:scraper_agents/state.py:PageInfo",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/state.py",
+      "target": "class:scraper_agents/state.py:ScrapeState",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "function:smartpost.py:_get_smartpost_visual_approach",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "function:smartpost.py:_get_smartpost_font_style",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "function:smartpost.py:_get_slide_roles",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "function:smartpost.py:_select_carousel_arc",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "function:smartpost.py:create_smartpost_router",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "function:smartpost.py:_get_posting_goal_context",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "function:smartpost.py:_save_smart_post_image",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "function:smartpost.py:_build_fallback_plan",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "function:smartpost.py:_build_festival_image_section",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "function:smartpost.py:_build_item_section",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "file:models.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "file:utils.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:smartpost.py",
+      "target": "file:prompt_guards.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:utils.py",
+      "target": "function:utils.py:extract_gemini_text",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:utils.py",
+      "target": "function:utils.py:parse_product_features",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:utils.py",
+      "target": "function:utils.py:parse_service_benefits",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:utils.py",
+      "target": "function:utils.py:parse_service_skills",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:utils.py",
+      "target": "function:utils.py:resize_image_for_platform",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:utils.py",
+      "target": "function:utils.py:save_campaign_image",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:utils.py",
+      "target": "function:utils.py:download_reference_image",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:utils.py",
+      "target": "function:utils.py:process_uploaded_reference_image",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:utils.py",
+      "target": "function:utils.py:build_product_image_context",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:utils.py",
+      "target": "function:utils.py:generate_brand_awareness_items",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:utils.py",
+      "target": "file:models.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:utils.py",
+      "target": "file:prompt_guards.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

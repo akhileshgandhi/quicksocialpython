@@ -1,0 +1,70 @@
+{
+  "nodes": [
+    {
+      "id": "file:scraper_agents/prompts/content_analysis.py",
+      "type": "file",
+      "name": "content_analysis.py",
+      "filePath": "scraper_agents/prompts/content_analysis.py",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/content_analysis.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scraper_agents/prompts/gap_fill.py",
+      "type": "file",
+      "name": "gap_fill.py",
+      "filePath": "scraper_agents/prompts/gap_fill.py",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/gap_fill.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scraper_agents/prompts/image_classification.py",
+      "type": "file",
+      "name": "image_classification.py",
+      "filePath": "scraper_agents/prompts/image_classification.py",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/image_classification.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scraper_agents/prompts/logo_search.py",
+      "type": "file",
+      "name": "logo_search.py",
+      "filePath": "scraper_agents/prompts/logo_search.py",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/logo_search.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scraper_agents/prompts/site_classification.py",
+      "type": "file",
+      "name": "site_classification.py",
+      "filePath": "scraper_agents/prompts/site_classification.py",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/site_classification.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": []
+}

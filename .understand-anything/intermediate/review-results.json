@@ -1,0 +1,20 @@
+{
+  "scriptCompleted": true,
+  "issues": [],
+  "warnings": [],
+  "stats": {
+    "totalNodes": 207,
+    "totalEdges": 270,
+    "totalLayers": 5,
+    "tourSteps": 9,
+    "nodeTypes": {
+      "file": 40,
+      "function": 123,
+      "class": 44
+    },
+    "edgeTypes": {
+      "contains": 167,
+      "imports": 103
+    }
+  }
+}

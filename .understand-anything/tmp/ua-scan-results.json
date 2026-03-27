@@ -1,0 +1,224 @@
+{
+  "scriptCompleted": true,
+  "name": ".",
+  "rawDescription": "Generate professional marketing post images using AI",
+  "readmeHead": "# Agentic Pipeline — Full Implementation Plan\r\n\r\n> **Purpose:** Reference document for converting the current marketing post generation pipeline\r\n> into a LangGraph-orchestrated agentic pipeline.\r\n> Keep this open while working. Update status as phases are completed.\r\n\r\n---\r\n\r\n## Table of Contents\r\n\r",
+  "languages": [
+    "python"
+  ],
+  "frameworks": [
+    "Fastapi",
+    "Pydantic",
+    "Uvicorn",
+    "Aiohttp",
+    "Playwright",
+    "Beautifulsoup4",
+    "Opencv",
+    "Numpy",
+    "Pillow"
+  ],
+  "files": [
+    {
+      "path": "campaign.py",
+      "language": "python",
+      "sizeLines": 1461
+    },
+    {
+      "path": "main.py",
+      "language": "python",
+      "sizeLines": 74
+    },
+    {
+      "path": "models.py",
+      "language": "python",
+      "sizeLines": 491
+    },
+    {
+      "path": "prompt_enhancer.py",
+      "language": "python",
+      "sizeLines": 325
+    },
+    {
+      "path": "prompt_guards.py",
+      "language": "python",
+      "sizeLines": 235
+    },
+    {
+      "path": "regenerate.py",
+      "language": "python",
+      "sizeLines": 466
+    },
+    {
+      "path": "scraper_agents/__init__.py",
+      "language": "python",
+      "sizeLines": 12
+    },
+    {
+      "path": "scraper_agents/agents/__init__.py",
+      "language": "python",
+      "sizeLines": 22
+    },
+    {
+      "path": "scraper_agents/agents/base.py",
+      "language": "python",
+      "sizeLines": 88
+    },
+    {
+      "path": "scraper_agents/agents/brand_intelligence.py",
+      "language": "python",
+      "sizeLines": 198
+    },
+    {
+      "path": "scraper_agents/agents/contact.py",
+      "language": "python",
+      "sizeLines": 167
+    },
+    {
+      "path": "scraper_agents/agents/content.py",
+      "language": "python",
+      "sizeLines": 145
+    },
+    {
+      "path": "scraper_agents/agents/crawler.py",
+      "language": "python",
+      "sizeLines": 1790
+    },
+    {
+      "path": "scraper_agents/agents/logo.py",
+      "language": "python",
+      "sizeLines": 1025
+    },
+    {
+      "path": "scraper_agents/agents/products.py",
+      "language": "python",
+      "sizeLines": 406
+    },
+    {
+      "path": "scraper_agents/agents/visual.py",
+      "language": "python",
+      "sizeLines": 337
+    },
+    {
+      "path": "scraper_agents/agents/web_search.py",
+      "language": "python",
+      "sizeLines": 237
+    },
+    {
+      "path": "scraper_agents/config.py",
+      "language": "python",
+      "sizeLines": 170
+    },
+    {
+      "path": "scraper_agents/extractors/__init__.py",
+      "language": "python",
+      "sizeLines": 2
+    },
+    {
+      "path": "scraper_agents/extractors/color_extraction.py",
+      "language": "python",
+      "sizeLines": 525
+    },
+    {
+      "path": "scraper_agents/extractors/contact_extraction.py",
+      "language": "python",
+      "sizeLines": 238
+    },
+    {
+      "path": "scraper_agents/extractors/content_parsing.py",
+      "language": "python",
+      "sizeLines": 609
+    },
+    {
+      "path": "scraper_agents/extractors/font_extraction.py",
+      "language": "python",
+      "sizeLines": 313
+    },
+    {
+      "path": "scraper_agents/extractors/html_helpers.py",
+      "language": "python",
+      "sizeLines": 787
+    },
+    {
+      "path": "scraper_agents/extractors/image_helpers.py",
+      "language": "python",
+      "sizeLines": 682
+    },
+    {
+      "path": "scraper_agents/extractors/product_parsing.py",
+      "language": "python",
+      "sizeLines": 795
+    },
+    {
+      "path": "scraper_agents/orchestrator.py",
+      "language": "python",
+      "sizeLines": 591
+    },
+    {
+      "path": "scraper_agents/prompts/__init__.py",
+      "language": "python",
+      "sizeLines": 2
+    },
+    {
+      "path": "scraper_agents/prompts/brand_analysis.py",
+      "language": "python",
+      "sizeLines": 76
+    },
+    {
+      "path": "scraper_agents/prompts/color_verification.py",
+      "language": "python",
+      "sizeLines": 32
+    },
+    {
+      "path": "scraper_agents/prompts/content_analysis.py",
+      "language": "python",
+      "sizeLines": 66
+    },
+    {
+      "path": "scraper_agents/prompts/gap_fill.py",
+      "language": "python",
+      "sizeLines": 41
+    },
+    {
+      "path": "scraper_agents/prompts/image_classification.py",
+      "language": "python",
+      "sizeLines": 35
+    },
+    {
+      "path": "scraper_agents/prompts/logo_search.py",
+      "language": "python",
+      "sizeLines": 25
+    },
+    {
+      "path": "scraper_agents/prompts/site_classification.py",
+      "language": "python",
+      "sizeLines": 46
+    },
+    {
+      "path": "scraper_agents/prompts/visual_analysis.py",
+      "language": "python",
+      "sizeLines": 42
+    },
+    {
+      "path": "scraper_agents/prompts/visual_and_classify.py",
+      "language": "python",
+      "sizeLines": 106
+    },
+    {
+      "path": "scraper_agents/state.py",
+      "language": "python",
+      "sizeLines": 118
+    },
+    {
+      "path": "smartpost.py",
+      "language": "python",
+      "sizeLines": 2429
+    },
+    {
+      "path": "utils.py",
+      "language": "python",
+      "sizeLines": 1014
+    }
+  ],
+  "totalFiles": 40,
+  "estimatedComplexity": "moderate"
+}

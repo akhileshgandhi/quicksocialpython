@@ -1,0 +1,499 @@
+{
+  "nodes": [
+    {
+      "id": "file:scraper_agents/extractors/product_parsing.py",
+      "type": "file",
+      "name": "product_parsing.py",
+      "filePath": "scraper_agents/extractors/product_parsing.py",
+      "summary": "Specialized agent or extractor for scraper_agents/extractors/product_parsing.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "extractor"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scraper_agents/extractors/product_parsing.py:_extract_price",
+      "type": "function",
+      "name": "_extract_price",
+      "filePath": "scraper_agents/extractors/product_parsing.py",
+      "lineRange": [
+        78,
+        111
+      ],
+      "summary": "Function _extract_price in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/extractors/product_parsing.py:parse_sitemap",
+      "type": "function",
+      "name": "parse_sitemap",
+      "filePath": "scraper_agents/extractors/product_parsing.py",
+      "lineRange": [
+        121,
+        159
+      ],
+      "summary": "Function parse_sitemap in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/extractors/product_parsing.py:_parse_sitemap_xml",
+      "type": "function",
+      "name": "_parse_sitemap_xml",
+      "filePath": "scraper_agents/extractors/product_parsing.py",
+      "lineRange": [
+        162,
+        194
+      ],
+      "summary": "Function _parse_sitemap_xml in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/extractors/product_parsing.py:is_product_detail_url",
+      "type": "function",
+      "name": "is_product_detail_url",
+      "filePath": "scraper_agents/extractors/product_parsing.py",
+      "lineRange": [
+        209,
+        236
+      ],
+      "summary": "Function is_product_detail_url in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/extractors/product_parsing.py:extract_products_from_soup",
+      "type": "function",
+      "name": "extract_products_from_soup",
+      "filePath": "scraper_agents/extractors/product_parsing.py",
+      "lineRange": [
+        243,
+        373
+      ],
+      "summary": "Function extract_products_from_soup in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/extractors/product_parsing.py:scrape_product_detail",
+      "type": "function",
+      "name": "scrape_product_detail",
+      "filePath": "scraper_agents/extractors/product_parsing.py",
+      "lineRange": [
+        380,
+        528
+      ],
+      "summary": "Function scrape_product_detail in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/extractors/product_parsing.py:scrape_product_catalog",
+      "type": "function",
+      "name": "scrape_product_catalog",
+      "filePath": "scraper_agents/extractors/product_parsing.py",
+      "lineRange": [
+        535,
+        755
+      ],
+      "summary": "Function scrape_product_catalog in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/extractors/product_parsing.py:_get_img_url",
+      "type": "function",
+      "name": "_get_img_url",
+      "filePath": "scraper_agents/extractors/product_parsing.py",
+      "lineRange": [
+        762,
+        775
+      ],
+      "summary": "Function _get_img_url in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/extractors/product_parsing.py:_find_next_page_url",
+      "type": "function",
+      "name": "_find_next_page_url",
+      "filePath": "scraper_agents/extractors/product_parsing.py",
+      "lineRange": [
+        778,
+        794
+      ],
+      "summary": "Function _find_next_page_url in scraper_agents/extractors/product_parsing.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scraper_agents/orchestrator.py",
+      "type": "file",
+      "name": "orchestrator.py",
+      "filePath": "scraper_agents/orchestrator.py",
+      "summary": "Specialized agent or extractor for scraper_agents/orchestrator.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "entry-point"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:scraper_agents/orchestrator.py:_load_job",
+      "type": "function",
+      "name": "_load_job",
+      "filePath": "scraper_agents/orchestrator.py",
+      "lineRange": [
+        65,
+        78
+      ],
+      "summary": "Function _load_job in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/orchestrator.py:_cleanup_old_jobs",
+      "type": "function",
+      "name": "_cleanup_old_jobs",
+      "filePath": "scraper_agents/orchestrator.py",
+      "lineRange": [
+        81,
+        97
+      ],
+      "summary": "Function _cleanup_old_jobs in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/orchestrator.py:create_agentic_scraper_router",
+      "type": "function",
+      "name": "create_agentic_scraper_router",
+      "filePath": "scraper_agents/orchestrator.py",
+      "lineRange": [
+        100,
+        251
+      ],
+      "summary": "Function create_agentic_scraper_router in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/orchestrator.py:_assemble_response",
+      "type": "function",
+      "name": "_assemble_response",
+      "filePath": "scraper_agents/orchestrator.py",
+      "lineRange": [
+        400,
+        571
+      ],
+      "summary": "Function _assemble_response in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/orchestrator.py:_save_metadata",
+      "type": "function",
+      "name": "_save_metadata",
+      "filePath": "scraper_agents/orchestrator.py",
+      "lineRange": [
+        574,
+        590
+      ],
+      "summary": "Function _save_metadata in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:scraper_agents/orchestrator.py:_str_field",
+      "type": "function",
+      "name": "_str_field",
+      "filePath": "scraper_agents/orchestrator.py",
+      "lineRange": [
+        405,
+        415
+      ],
+      "summary": "Function _str_field in scraper_agents/orchestrator.py.",
+      "tags": [
+        "function"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scraper_agents/prompts/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "scraper_agents/prompts/__init__.py",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/__init__.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scraper_agents/prompts/brand_analysis.py",
+      "type": "file",
+      "name": "brand_analysis.py",
+      "filePath": "scraper_agents/prompts/brand_analysis.py",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/brand_analysis.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:scraper_agents/prompts/color_verification.py",
+      "type": "file",
+      "name": "color_verification.py",
+      "filePath": "scraper_agents/prompts/color_verification.py",
+      "summary": "Specialized agent or extractor for scraper_agents/prompts/color_verification.py within the scraping pipeline.",
+      "tags": [
+        "source",
+        "agent",
+        "prompt-template"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:scraper_agents/extractors/product_parsing.py",
+      "target": "function:scraper_agents/extractors/product_parsing.py:_extract_price",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/extractors/product_parsing.py",
+      "target": "function:scraper_agents/extractors/product_parsing.py:parse_sitemap",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/extractors/product_parsing.py",
+      "target": "function:scraper_agents/extractors/product_parsing.py:_parse_sitemap_xml",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/extractors/product_parsing.py",
+      "target": "function:scraper_agents/extractors/product_parsing.py:is_product_detail_url",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/extractors/product_parsing.py",
+      "target": "function:scraper_agents/extractors/product_parsing.py:extract_products_from_soup",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/extractors/product_parsing.py",
+      "target": "function:scraper_agents/extractors/product_parsing.py:scrape_product_detail",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/extractors/product_parsing.py",
+      "target": "function:scraper_agents/extractors/product_parsing.py:scrape_product_catalog",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/extractors/product_parsing.py",
+      "target": "function:scraper_agents/extractors/product_parsing.py:_get_img_url",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/extractors/product_parsing.py",
+      "target": "function:scraper_agents/extractors/product_parsing.py:_find_next_page_url",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/extractors/product_parsing.py",
+      "target": "file:scraper_agents/config.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/extractors/product_parsing.py",
+      "target": "file:scraper_agents/extractors/html_helpers.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "function:scraper_agents/orchestrator.py:_load_job",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "function:scraper_agents/orchestrator.py:_cleanup_old_jobs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "function:scraper_agents/orchestrator.py:create_agentic_scraper_router",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "function:scraper_agents/orchestrator.py:_assemble_response",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "function:scraper_agents/orchestrator.py:_save_metadata",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "function:scraper_agents/orchestrator.py:_str_field",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:models.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:utils.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:scraper_agents/state.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:scraper_agents/agents/crawler.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:scraper_agents/agents/logo.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:scraper_agents/agents/visual.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:scraper_agents/agents/products.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:scraper_agents/agents/content.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:scraper_agents/agents/contact.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:scraper_agents/agents/brand_intelligence.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:scraper_agents/agents/web_search.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:scraper_agents/orchestrator.py",
+      "target": "file:scraper_agents/agents/crawler.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}
