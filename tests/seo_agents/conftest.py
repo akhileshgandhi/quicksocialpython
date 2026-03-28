@@ -212,9 +212,9 @@ def get_mock_crawl_response() -> str:
         "total_pages": 50,
         "crawl_depth_reached": 3,
         "pages": [
-            {"url": "https://example.com/", "status_code": 200, "title": "Home", "meta_description": "Welcome", "h1": "Example Corp", "word_count": 500},
-            {"url": "https://example.com/about", "status_code": 200, "title": "About Us", "meta_description": "About", "h1": "About", "word_count": 300},
-            {"url": "https://example.com/products", "status_code": 200, "title": "Products", "meta_description": "Our Products", "h1": "Products", "word_count": 800},
+            {"url": "https://example.com/", "status_code": 200, "title": "Home", "meta_description": "Welcome", "h1": "Example Corp", "word_count": 500, "response_time_ms": 150, "internal_links": ["https://example.com/about", "https://example.com/products"], "external_links": []},
+            {"url": "https://example.com/about", "status_code": 200, "title": "About Us", "meta_description": "About", "h1": "About", "word_count": 300, "response_time_ms": 120, "internal_links": ["https://example.com/"], "external_links": []},
+            {"url": "https://example.com/products", "status_code": 200, "title": "Products", "meta_description": "Our Products", "h1": "Products", "word_count": 800, "response_time_ms": 180, "internal_links": ["https://example.com/"], "external_links": []},
         ],
         "crawl_errors": [],
     })

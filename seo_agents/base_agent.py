@@ -74,8 +74,9 @@ class SEOBaseAgent(ABC):
             state.errors.append(error_msg)
             self.log(error_msg, level="error")
         except Exception as exc:
-            self.log(f"FAILED: {exc.__class__.__name__}: {exc}", level="error")
-            state.errors.append(f"{self.agent_name}: {exc.__class__.__name__}: {exc}")
+            error_str = str(exc)
+            self.log(f"FAILED: {exc.__class__.__name__}: {error_str}", level="error")
+            state.errors.append(f"{self.agent_name}: {exc.__class__.__name__}: {error_str}")
 
         self._validate_outputs(state)
 
@@ -184,23 +185,37 @@ class SEOBaseAgent(ABC):
         )
         async def _generate():
             async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {groq_api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": self._groq_model,
-                        "messages": [
-                            {"role": "system", "content": "You are a helpful assistant. Return ONLY valid JSON, no markdown, no explanations."},
-                            {"role": "user", "content": prompt},
-                        ],
-                        "temperature": 0.3,
-                        "max_tokens": 4096,
-                    },
-                    timeout=60.0,
-                )
+                try:
+                    response = await client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {groq_api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": self._groq_model,
+                            "messages": [
+                                {"role": "system", "content": "You are a helpful assistant. Return ONLY valid JSON, no markdown, no explanations."},
+                                {"role": "user", "content": prompt},
+                            ],
+                            "temperature": 0.3,
+                            "max_tokens": 4096,
+                        },
+                        timeout=60.0,
+                    )
+                except httpx.TimeoutException:
+                    raise ValueError("Groq API timeout")
+                except httpx.ConnectError as e:
+                    raise ValueError(f"Groq API connection error: {e}")
+                
+                # Handle rate limiting and other HTTP errors
+                if response.status_code == 429:
+                    raise ValueError("Rate limited - please try again later")
+                if response.status_code >= 500:
+                    raise ValueError(f"Groq API error: {response.status_code}")
+                if response.status_code == 400:
+                    error_body = response.text[:200]
+                    raise ValueError(f"Groq API bad request: {error_body}")
                 
                 response.raise_for_status()
                 result = response.json()

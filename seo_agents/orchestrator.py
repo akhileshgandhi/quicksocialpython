@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -147,7 +147,7 @@ class SEOOrchestrator:
                 start_time = time.time()
                 logger.info(f"Running agent: {agent.agent_name}")
 
-                state.updated_at = datetime.utcnow()
+                state.updated_at = datetime.now(timezone.utc)
 
                 import asyncio
 
@@ -194,7 +194,7 @@ class SEOOrchestrator:
 
             self._check_layer_complete(state)
 
-            state.updated_at = datetime.utcnow()
+            state.updated_at = datetime.now(timezone.utc)
             save_seo_state(state, self.storage_dir)
 
             if agent.triggers_approval_gate:
@@ -224,7 +224,7 @@ class SEOOrchestrator:
 
             self._check_layer_complete(state)
 
-            state.updated_at = datetime.utcnow()
+            state.updated_at = datetime.now(timezone.utc)
             save_seo_state(state, self.storage_dir)
 
             triggered_gate = GATE_TRIGGER_MAP.get(agent.agent_name)
@@ -251,7 +251,7 @@ class SEOOrchestrator:
 
         gate["approved"] = True
         gate["approved_by"] = approved_by
-        gate["approved_at"] = datetime.utcnow().isoformat()
+        gate["approved_at"] = datetime.now(timezone.utc).isoformat()
 
         save_seo_state(state, self.storage_dir)
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -80,11 +80,28 @@ class SEOState:
 
     def __post_init__(self):
         """Initialize timestamps if not set."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if self.created_at is None:
             self.created_at = now
         if self.updated_at is None:
             self.updated_at = now
+
+
+def serialize_for_json(obj):
+    """Serialize Pydantic models and special objects for JSON."""
+    if hasattr(obj, 'model_dump'):
+        return obj.model_dump()
+    elif hasattr(obj, 'model_dump_json'):
+        import json
+        return json.loads(obj.model_dump_json())
+    elif isinstance(obj, (list, tuple)):
+        return [serialize_for_json(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {k: serialize_for_json(v) for k, v in obj.items()}
+    elif obj is None or isinstance(obj, (str, int, float, bool)):
+        return obj
+    else:
+        return str(obj)
 
 
 def save_seo_state(state: SEOState, storage_dir: Path) -> None:
@@ -98,31 +115,31 @@ def save_seo_state(state: SEOState, storage_dir: Path) -> None:
         "project_id": state.project_id,
         "brand_id": state.brand_id,
         "website_url": state.website_url,
-        "seo_project_context": state.seo_project_context,
-        "site_inventory": state.site_inventory,
-        "technical_audit_report": state.technical_audit_report,
-        "competitor_matrix": state.competitor_matrix,
-        "keyword_universe": state.keyword_universe,
-        "keyword_clusters": state.keyword_clusters,
-        "page_keyword_map": state.page_keyword_map,
-        "content_gap_report": state.content_gap_report,
-        "seo_priority_backlog": state.seo_priority_backlog,
-        "page_optimization_briefs": state.page_optimization_briefs,
-        "content_briefs": state.content_briefs,
-        "content_drafts": state.content_drafts,
-        "internal_link_graph": state.internal_link_graph,
-        "schema_map": state.schema_map,
-        "performance_dashboard": state.performance_dashboard,
-        "reoptimization_queue": state.reoptimization_queue,
+        "seo_project_context": serialize_for_json(state.seo_project_context),
+        "site_inventory": serialize_for_json(state.site_inventory),
+        "technical_audit_report": serialize_for_json(state.technical_audit_report),
+        "competitor_matrix": serialize_for_json(state.competitor_matrix),
+        "keyword_universe": serialize_for_json(state.keyword_universe),
+        "keyword_clusters": serialize_for_json(state.keyword_clusters),
+        "page_keyword_map": serialize_for_json(state.page_keyword_map),
+        "content_gap_report": serialize_for_json(state.content_gap_report),
+        "seo_priority_backlog": serialize_for_json(state.seo_priority_backlog),
+        "page_optimization_briefs": serialize_for_json(state.page_optimization_briefs),
+        "content_briefs": serialize_for_json(state.content_briefs),
+        "content_drafts": serialize_for_json(state.content_drafts),
+        "internal_link_graph": serialize_for_json(state.internal_link_graph),
+        "schema_map": serialize_for_json(state.schema_map),
+        "performance_dashboard": serialize_for_json(state.performance_dashboard),
+        "reoptimization_queue": serialize_for_json(state.reoptimization_queue),
         "completed_agents": state.completed_agents,
         "current_layer": state.current_layer,
         "status": state.status,
         "errors": state.errors,
         "total_time_seconds": state.total_time_seconds,
-        "approval_gates": state.approval_gates,
+        "approval_gates": serialize_for_json(state.approval_gates),
         "config": state.config,
         "created_at": state.created_at.isoformat() if state.created_at else None,
-        "updated_at": state.updated_at.isoformat() if state.updated_at else datetime.utcnow().isoformat(),
+        "updated_at": state.updated_at.isoformat() if state.updated_at else datetime.now(timezone.utc).isoformat(),
     }
 
     with open(temp_path, "w", encoding="utf-8") as f:
