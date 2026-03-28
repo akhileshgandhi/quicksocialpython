@@ -14,6 +14,7 @@ from smartpost import create_smartpost_router
 from scraper_agents import create_agentic_scraper_router
 from prompt_enhancer import create_prompt_enhancer_router
 from regenerate import create_regenerate_router
+from seo_router import create_seo_router
 
 # ================= CONFIGURATION =================
 load_dotenv()
@@ -61,6 +62,7 @@ app.include_router(create_smartpost_router(client, model, image_model, STORAGE_D
 app.include_router(create_agentic_scraper_router(client, model, STORAGE_DIR))
 app.include_router(create_prompt_enhancer_router(client, model))
 app.include_router(create_regenerate_router(client, model, image_model, STORAGE_DIR))
+app.include_router(create_seo_router(client, model, STORAGE_DIR))
 
 
 # ================= HEALTH CHECK =================

@@ -26,5 +26,12 @@ cloudinary==1.44.1
 numpy==2.4.2
 opencv-python==4.13.0.92
 
+# Retry Logic
+tenacity==9.0.0
+
+# Testing
+pytest==8.3.5
+pytest-asyncio==0.25.2
+
 # Utilities
 # (standard libraries like json, uuid, re, base64, logging, datetime, pathlib, io, os are built-in)
