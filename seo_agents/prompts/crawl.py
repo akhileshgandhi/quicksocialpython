@@ -53,7 +53,14 @@ Return a JSON object with this structure:
             "images": [{{"src": "<img>", "alt": "<alt>", "is_optimized": <bool>}}],
             "has_unoptimized_images": <bool>,
             "internal_links": ["urls"],
-            "external_links": ["urls"]
+            "external_links": ["urls"],
+            
+            // AEO/GEO Enhancement fields (new)
+            "has_faq_schema": <true/false>,
+            "has_speakable_markup": <true/false>,
+            "has_question_content": <true/false>,
+            "structured_data_quality": "<none|basic|good|excellent>",
+            "featured_snippet_eligibility": "<unknown|high|medium|low>"
         }}
     ],
     "crawl_errors": [{{"url": "<url>", "error": "<msg>"}}],
@@ -68,7 +75,14 @@ Return a JSON object with this structure:
     "pages_with_meta_description": <int>,
     "pages_with_schema": <int>,
     "pages_with_og_tags": <int>,
-    "avg_response_time_ms": <float>
+    "avg_response_time_ms": <float>,
+    
+    // AEO/GEO Enhancement summary fields (new)
+    "pages_with_faq_schema": <int>,
+    "pages_with_speakable_markup": <int>,
+    "pages_with_question_content": <int>,
+    "pages_with_excellent_structured_data": <int>,
+    "pages_eligible_for_featured_snippets": <int>
 }}
 
 Include:

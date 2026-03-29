@@ -1,5 +1,5 @@
 """
-CompetitorAgent (Agent 04) — performs competitor analysis.
+CompetitorAgent (Agent 08) — performs competitor analysis.
 """
 
 from seo_agents.base_agent import SEOBaseAgent
@@ -7,7 +7,7 @@ from seo_agents.state import SEOState
 
 
 class CompetitorAgent(SEOBaseAgent):
-    agent_name = "agent_04_competitor"
+    agent_name = "agent_08_competitor"
     triggers_approval_gate = False
 
     async def run(self, state: SEOState) -> None:

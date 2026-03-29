@@ -48,10 +48,26 @@ Provide a JSON object with these exact fields:
     "brand_voice": "Description of brand voice/tone (e.g., 'Professional, authoritative' or 'Friendly, casual')",
     "key_products_services": [
         "List of 3-10 key products or services offered"
-    ]
+    ],
+    
+    # AEO/GEO Enhancement fields (new)
+    "voice_search_goals": [
+        "List of voice search optimization goals (e.g., 'optimize for Alexa/Siri', 'capture question-based queries')"
+    ],
+    "ai_citation_targets": [
+        "List of pages or content the client wants AI systems to cite (e.g., 'homepage', 'pricing page')"
+    ],
+    "featured_snippet_targets": [
+        "List of keywords the client wants to win featured snippets for"
+    ],
+    "target_ai_platforms": [
+        "List of AI platforms to optimize for: 'ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Bing Copilot', etc."
+    ],
+    "conversational_content_priority": true/false,
+    "description": "Whether the client prioritizes conversational/question-based content for voice search"
 }}
 
-Ensure all arrays have at least 2 items unless explicitly empty. Use realistic 
+Ensure all arrays have at least 1 item unless explicitly empty. Use realistic 
 inferences based on common business patterns for the industry."""
 
 
@@ -131,5 +147,12 @@ Return ONLY valid JSON with these fields:
     "geographic_focus": "{target_geography}",
     "competitors": ["list of competitors or empty"],
     "brand_voice": "Description of brand voice",
-    "key_products_services": ["list of products/services"]
+    "key_products_services": ["list of products/services"],
+    
+    # AEO/GEO Enhancement fields (new)
+    "voice_search_goals": ["list of voice search goals"],
+    "ai_citation_targets": ["list of pages to be cited by AI"],
+    "featured_snippet_targets": ["list of featured snippet targets"],
+    "target_ai_platforms": ["list of AI platforms: ChatGPT, Claude, Perplexity, etc."],
+    "conversational_content_priority": true/false
 }}"""

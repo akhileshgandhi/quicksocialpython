@@ -1,5 +1,5 @@
 """
-Competitor analysis prompt templates for Agent 04.
+Competitor analysis prompt templates for Agent 08.
 """
 
 from typing import Any, Dict

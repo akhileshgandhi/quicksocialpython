@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Stripe SEO Agent Pipeline - Runs Agent 01 → 02 → 03 → 04
+APXN Property SEO Agent Pipeline - Runs Agent 01 → 02 → 03 → 04
 
-This pipeline tests the enhanced SEO workflow:
+This pipeline tests the enhanced SEO workflow for APXN Property:
 - Agent 01: Intake (business context)
 - Agent 02: Crawl (site inventory with SEO enhancements)
 - Agent 03: Technical Audit (inference-based analysis)
@@ -52,38 +52,95 @@ def main():
 
 
 async def run_pipeline(storage_dir):
-    project_id = 'stripe_project'
+    project_id = 'apxn_property_project'
     project_dir = storage_dir / 'seo_projects' / project_id
     project_dir.mkdir(parents=True, exist_ok=True)
     
     print('='*60)
-    print('AGENT 01: IntakeAgent')
+    print('APXN PROPERTY - SEO AGENT PIPELINE')
     print('='*60)
+    print('')
     
-    stripe_data = {
-        'business_name': 'Stripe',
-        'website_url': 'https://stripe.com',
-        'industry': 'Financial Technology / Payments',
-        'target_audience': ['Businesses', 'Developers', 'SaaS companies'],
-        'primary_goals': ['Process payments securely', 'Increase transaction volume', 'Reduce churn'],
-        'competitors': ['PayPal', 'Square', 'Adyen', 'Braintree'],
-        'brand_voice': 'Professional, secure, innovative, developer-friendly',
-        'key_products_services': ['Payment processing', 'Stripe Atlas', 'Stripe Capital', 'Radar fraud detection'],
+    # APXN Property business data extracted from user input
+    apxn_data = {
+        'business_name': 'APXN Property',
+        'website_url': 'https://apxnproperty.com',
+        'industry': 'Real Estate / Rural Land Investment Platform',
+        'target_audience': [
+            'First-time land buyers',
+            'Small/retail real estate investors',
+            'Off-grid/lifestyle buyers',
+            'Budget-conscious buyers',
+            'Credit-challenged buyers seeking owner financing'
+        ],
+        'primary_goals': [
+            'Sell affordable vacant rural land',
+            'Provide owner financing options',
+            'Offer land investment opportunities',
+            'Deliver best-priced land deals',
+            'Educate buyers on land investment'
+        ],
+        'geographic_focus': 'United States',
+        'competitors': [
+            'LandWatch',
+            'Land.com',
+            'Lands of America',
+            'Land Century',
+            'Zillow (land listings)'
+        ],
+        'brand_voice': 'Trustworthy, affordable, educational, investor-friendly',
+        'key_products_services': [
+            'Rural land listings',
+            'Owner financing / installment plans',
+            'Land buying guides',
+            'Legal & zoning information',
+            'Investment calculators',
+            'Vacant land for sale',
+            'Ranch land',
+            'Lake-view land'
+        ],
+        # AEO/GEO Enhancement fields
+        'voice_search_goals': [
+            'Capture voice queries for land investment',
+            'Answer questions about buying land with no credit check'
+        ],
+        'ai_citation_targets': [
+            '/listings',
+            '/owner-financing',
+            '/land-buying-guide',
+            '/investment-calculator'
+        ],
+        'featured_snippet_targets': [
+            'how to buy land with no credit check',
+            'best states for rural land investment',
+            'cheap land for sale owner financing'
+        ],
+        'target_ai_platforms': [
+            'ChatGPT',
+            'Perplexity',
+            'Google AI Overview'
+        ],
+        'conversational_content_priority': True,
     }
     
     state = SEOState(
         project_id=project_id,
-        brand_id='stripe',
-        website_url='https://stripe.com',
+        brand_id='apxn_property',
+        website_url='https://apxnproperty.com',
         config={
             **CRAWL_CONFIG,
-            'target_geography': 'Global',
-            'intake_form_data': stripe_data,
+            'target_geography': 'United States',
+            'intake_form_data': apxn_data,
         }
     )
     
     print(f'Config: crawl_depth={CRAWL_CONFIG["crawl_depth"]}, max_pages={CRAWL_CONFIG["max_pages"]}')
     print('')
+    
+    # ========== AGENT 01: INTAKE ==========
+    print('='*60)
+    print('AGENT 01: IntakeAgent')
+    print('='*60)
     
     agent_01 = IntakeAgent(None, 'meta-llama/llama-4-scout-17b-16e-instruct', storage_dir)
     await agent_01.execute(state)
@@ -115,11 +172,34 @@ async def run_pipeline(storage_dir):
     
     voice = ctx.get('brand_voice', 'N/A')
     print(f"\nBrand Voice: {voice}")
+    
+    # AEO/GEO fields
+    print("\n--- AEO/GEO Enhancements ---")
+    voice_goals = ctx.get('voice_search_goals', [])
+    if voice_goals:
+        print(f"Voice Search Goals: {format_list(voice_goals, 3)}")
+    
+    ai_targets = ctx.get('ai_citation_targets', [])
+    if ai_targets:
+        print(f"AI Citation Targets: {format_list(ai_targets, 5)}")
+    
+    snippet_targets = ctx.get('featured_snippet_targets', [])
+    if snippet_targets:
+        print(f"Featured Snippet Targets: {format_list(snippet_targets, 3)}")
+    
+    ai_platforms = ctx.get('target_ai_platforms', [])
+    if ai_platforms:
+        print(f"Target AI Platforms: {format_list(ai_platforms, 3)}")
+    
+    conv_priority = ctx.get('conversational_content_priority', False)
+    print(f"Conversational Content Priority: {'Yes' if conv_priority else 'No'}")
+    
     print('')
     save_seo_state(state, storage_dir)
     print(f'Saved to: {project_dir}/project.json')
     print('')
     
+    # ========== AGENT 02: CRAWL ==========
     print('='*60)
     print('AGENT 02: CrawlAgent (Enhanced SEO)')
     print('='*60)
@@ -227,6 +307,7 @@ async def run_pipeline(storage_dir):
     print(f'Saved to: {project_dir}/project.json')
     print('')
     
+    # ========== AGENT 03: TECHNICAL AUDIT ==========
     print('='*60)
     print('AGENT 03: TechnicalAuditAgent (Inference-Based)')
     print('='*60)
@@ -283,13 +364,14 @@ async def run_pipeline(storage_dir):
     print(f'Saved to: {project_dir}/project.json')
     print('')
     
+    # ========== AGENT 04: KEYWORD RESEARCH ==========
     print('='*60)
     print('AGENT 04: KeywordResearchAgent (AEO/GEO Enhancements)')
     print('='*60)
     print('Input: seo_project_context + site_inventory')
     print('Focus: AEO/GEO keyword research with answer surfaces')
     print('')
-
+    
     # Note: In the new architecture, Agent 08 (Competitor) runs AFTER Agent 04
     # So competitor_matrix is NOT available for this agent
     agent_04 = KeywordResearchAgent(None, 'meta-llama/llama-4-scout-17b-16e-instruct', storage_dir)
@@ -347,7 +429,7 @@ async def run_pipeline(storage_dir):
     print('')
     
     print('='*60)
-    print('PIPELINE COMPLETE (Agents 01-05)')
+    print('PIPELINE COMPLETE (Agents 01-04)')
     print('='*60)
     print(f'Project: {project_id}')
     print(f'Website: {state.seo_project_context.get("website_url")}')

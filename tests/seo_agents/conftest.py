@@ -218,3 +218,77 @@ def get_mock_crawl_response() -> str:
         ],
         "crawl_errors": [],
     })
+
+
+def get_mock_keyword_response() -> str:
+    """Return a realistic mock response for Agent 05 Keyword Research with AEO/GEO fields."""
+    return json.dumps({
+        "total_keywords": 15,
+        "keywords": [
+            {
+                "keyword": "marketing automation for small business",
+                "intent": "commercial",
+                "volume_tier": "high",
+                "competition_tier": "high",
+                "source": "seed",
+                "query_format": "keyword",
+                "answer_surfaces": ["featured_snippet", "ai_overview"],
+                "citation_value_score": 8
+            },
+            {
+                "keyword": "how to automate marketing emails",
+                "intent": "informational",
+                "volume_tier": "medium",
+                "competition_tier": "medium",
+                "source": "question_variant",
+                "query_format": "question",
+                "answer_surfaces": ["featured_snippet", "voice_assistant", "ai_overview"],
+                "citation_value_score": 9
+            },
+            {
+                "keyword": "best email marketing software 2024",
+                "intent": "commercial",
+                "volume_tier": "high",
+                "competition_tier": "high",
+                "source": "expansion",
+                "query_format": "keyword",
+                "answer_surfaces": ["ai_chat"],
+                "citation_value_score": 6
+            },
+            {
+                "keyword": "what is marketing automation",
+                "intent": "informational",
+                "volume_tier": "high",
+                "competition_tier": "low",
+                "source": "question_variant",
+                "query_format": "question",
+                "answer_surfaces": ["featured_snippet", "voice_assistant"],
+                "citation_value_score": 10
+            },
+            {
+                "keyword": "marketing automation pricing plans",
+                "intent": "transactional",
+                "volume_tier": "medium",
+                "competition_tier": "medium",
+                "source": "site_inventory",
+                "query_format": "keyword",
+                "answer_surfaces": ["ai_overview"],
+                "citation_value_score": 7
+            },
+            {
+                "keyword": "voice search marketing strategy",
+                "intent": "informational",
+                "volume_tier": "low",
+                "competition_tier": "low",
+                "source": "expansion",
+                "query_format": "voice",
+                "answer_surfaces": ["voice_assistant", "ai_chat"],
+                "citation_value_score": 8
+            },
+        ],
+        "seed_terms_used": ["Marketing Automation", "Email Campaigns", "Analytics Dashboard"],
+        "featured_snippet_opportunities": 3,
+        "voice_search_opportunities": 3,
+        "ai_overview_opportunities": 4,
+        "high_citation_value_keywords": 3
+    })

@@ -14,15 +14,25 @@ Functional Logic:
 Gate Logic: None — pipeline continues immediately
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar, Type
+
 from seo_agents.base_agent import SEOBaseAgent
 from seo_agents.state import SEOState
+
+if TYPE_CHECKING:
+    from seo_agents.validators.schemas.seo_project_context import SEOProjectContextSchema
 
 
 class IntakeAgent(SEOBaseAgent):
     """Agent 01: Intake - Process user form data into structured business context."""
     
-    agent_name = "agent_01_intake"
-    triggers_approval_gate = False
+    agent_name: ClassVar[str] = "agent_01_intake"
+    triggers_approval_gate: ClassVar[bool] = False
+
+    def __all__(self) -> list[str]:
+        return ["IntakeAgent", self.agent_name]
     
     def _validate_inputs(self, state: SEOState) -> None:
         """Validate required input fields exist before running the agent."""

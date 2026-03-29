@@ -36,17 +36,24 @@ Usage:
     await agent.execute(state)
 """
 
-from typing import Any, Dict
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Type
 
 from seo_agents.base_agent import SEOBaseAgent
 from seo_agents.state import SEOState
+from seo_agents.utils import normalize_list_field, normalize_dict_value
+
+if TYPE_CHECKING:
+    from seo_agents.validators.schemas.site_inventory import SiteInventorySchema
 
 
 class CrawlAgent(SEOBaseAgent):
     """Agent responsible for crawling websites and building SEO site inventory."""
     
-    agent_name: str = "agent_02_crawl"
-    triggers_approval_gate: bool = False
+    agent_name: ClassVar[str] = "agent_02_crawl"
+    triggers_approval_gate: ClassVar[bool] = False
+    response_schema: ClassVar[Type[Any]] = None  # Set at call time
 
     def _validate_inputs(self, state: SEOState) -> None:
         """Validate required input fields exist before running the agent.
@@ -109,10 +116,16 @@ class CrawlAgent(SEOBaseAgent):
         # Ensure list fields are lists, not None or strings
         list_fields = ["h2_tags", "h3_tags", "schema_types", "internal_links", "external_links"]
         for field in list_fields:
-            if field in normalized and normalized[field] is None:
-                normalized[field] = []
-            elif field in normalized and isinstance(normalized[field], str):
-                normalized[field] = [normalized[field]]
+            normalized[field] = normalize_list_field(normalized.get(field))
+        
+        # AEO/GEO Enhancement: Set defaults for new fields if missing
+        from seo_agents.validators.schemas.site_inventory import StructuredDataQuality, FeaturedSnippetEligibility
+        
+        normalized.setdefault("has_faq_schema", False)
+        normalized.setdefault("has_speakable_markup", False)
+        normalized.setdefault("has_question_content", False)
+        normalized.setdefault("structured_data_quality", StructuredDataQuality.NONE)
+        normalized.setdefault("featured_snippet_eligibility", FeaturedSnippetEligibility.UNKNOWN)
         
         return normalized
 
@@ -152,7 +165,34 @@ class CrawlAgent(SEOBaseAgent):
         normalized.setdefault("duplicate_meta_descriptions", [])
         normalized.setdefault("thin_content_pages", [])
         
+        # AEO/GEO Enhancement: Set defaults for summary fields if missing
+        normalized.setdefault("pages_with_faq_schema", 0)
+        normalized.setdefault("pages_with_speakable_markup", 0)
+        normalized.setdefault("pages_with_question_content", 0)
+        normalized.setdefault("pages_with_excellent_structured_data", 0)
+        normalized.setdefault("pages_eligible_for_featured_snippets", 0)
+        
+        # Normalize AEO fields that might come as strings from LLM
+        from seo_agents.validators.schemas.site_inventory import StructuredDataQuality, FeaturedSnippetEligibility
+        
+        sdq = normalized.get("structured_data_quality")
+        if isinstance(sdq, str):
+            try:
+                normalized["structured_data_quality"] = StructuredDataQuality(sdq)
+            except ValueError:
+                normalized["structured_data_quality"] = StructuredDataQuality.NONE
+        
+        fse = normalized.get("featured_snippet_eligibility")
+        if isinstance(fse, str):
+            try:
+                normalized["featured_snippet_eligibility"] = FeaturedSnippetEligibility(fse)
+            except ValueError:
+                normalized["featured_snippet_eligibility"] = FeaturedSnippetEligibility.UNKNOWN
+        
         return normalized
+
+    def __all__(self) -> list[str]:
+        return ["CrawlAgent", self.agent_name]
 
     async def run(self, state: SEOState) -> None:
         """Execute the crawl agent to build site inventory.

@@ -1,5 +1,5 @@
 """
-GapAnalysisAgent (Agent 08) — analyzes content gaps vs competitors.
+GapAnalysisAgent (Agent 07) — analyzes content gaps vs competitors.
 """
 
 from seo_agents.base_agent import SEOBaseAgent
@@ -7,7 +7,7 @@ from seo_agents.state import SEOState
 
 
 class GapAnalysisAgent(SEOBaseAgent):
-    agent_name = "agent_08_gap_analysis"
+    agent_name = "agent_07_gap_analysis"
     triggers_approval_gate = False
 
     async def run(self, state: SEOState) -> None:

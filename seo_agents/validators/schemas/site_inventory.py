@@ -12,11 +12,31 @@ Classes:
     SitemapInfo: Sitemap.xml metadata
     RobotsTxtInfo: robots.txt metadata
     SiteInventorySchema: Complete site inventory
+
+Exports:
+    All schema classes and enums
 """
 
+from enum import Enum
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
+
+
+class StructuredDataQuality(str, Enum):
+    """Enum for structured data quality levels."""
+    NONE = "none"
+    BASIC = "basic"
+    GOOD = "good"
+    EXCELLENT = "excellent"
+
+
+class FeaturedSnippetEligibility(str, Enum):
+    """Enum for featured snippet eligibility levels."""
+    UNKNOWN = "unknown"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
 
 
 class ImageInfo(BaseModel):
@@ -74,6 +94,28 @@ class PageRecord(BaseModel):
     # Links
     internal_links: List[str] = Field(default_factory=list)
     external_links: List[str] = Field(default_factory=list)
+    
+    # AEO/GEO Enhancement fields
+    has_faq_schema: bool = Field(
+        default=False,
+        description="Whether the page has FAQ schema markup"
+    )
+    has_speakable_markup: bool = Field(
+        default=False,
+        description="Whether the page has Speakable markup for voice assistants"
+    )
+    has_question_content: bool = Field(
+        default=False,
+        description="Whether the page contains question-based content (FAQ, Q&A format)"
+    )
+    structured_data_quality: StructuredDataQuality = Field(
+        default=StructuredDataQuality.NONE,
+        description="Quality of structured data: none, basic, good, excellent"
+    )
+    featured_snippet_eligibility: FeaturedSnippetEligibility = Field(
+        default=FeaturedSnippetEligibility.UNKNOWN,
+        description="Eligibility for featured snippets: unknown, high, medium, low"
+    )
 
 
 class CrawlError(BaseModel):
@@ -127,3 +169,39 @@ class SiteInventorySchema(BaseModel):
     pages_with_schema: int = 0
     pages_with_og_tags: int = 0
     avg_response_time_ms: float = 0.0
+    
+    # AEO/GEO Enhancement summary fields
+    pages_with_faq_schema: int = Field(
+        default=0,
+        description="Number of pages with FAQ schema markup"
+    )
+    pages_with_speakable_markup: int = Field(
+        default=0,
+        description="Number of pages with Speakable markup"
+    )
+    pages_with_question_content: int = Field(
+        default=0,
+        description="Number of pages with question-based content"
+    )
+    pages_with_excellent_structured_data: int = Field(
+        default=0,
+        description="Number of pages with excellent structured data"
+    )
+    pages_eligible_for_featured_snippets: int = Field(
+        default=0,
+        description="Number of pages eligible for featured snippets"
+    )
+
+
+# Module exports
+__all__ = [
+    "ImageInfo",
+    "OpenGraphTags",
+    "PageRecord",
+    "CrawlError",
+    "SitemapInfo",
+    "RobotsTxtInfo",
+    "SiteInventorySchema",
+    "StructuredDataQuality",
+    "FeaturedSnippetEligibility",
+]

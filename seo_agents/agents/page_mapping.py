@@ -1,5 +1,5 @@
 """
-PageMappingAgent (Agent 07) — maps keyword clusters to existing pages or identifies new pages needed.
+PageMappingAgent (Agent 06) — maps keyword clusters to existing pages or identifies new pages needed.
 """
 
 from seo_agents.base_agent import SEOBaseAgent
@@ -7,7 +7,7 @@ from seo_agents.state import SEOState
 
 
 class PageMappingAgent(SEOBaseAgent):
-    agent_name = "agent_07_page_mapping"
+    agent_name = "agent_06_page_mapping"
     triggers_approval_gate = False
 
     async def run(self, state: SEOState) -> None:

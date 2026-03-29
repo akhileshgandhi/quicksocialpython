@@ -375,9 +375,16 @@ class TestAgent02Integration:
         
         # Check page structure for Agent 03
         first_page = inventory["pages"][0]
-        assert "url" in first_page
-        assert "status_code" in first_page
-        assert "title" in first_page
+        # Handle both dict and Pydantic model
+        if hasattr(first_page, 'model_dump'):
+            first_page_dict = first_page.model_dump()
+            assert "url" in first_page_dict
+            assert "status_code" in first_page_dict
+            assert "title" in first_page_dict
+        else:
+            assert "url" in first_page
+            assert "status_code" in first_page
+            assert "title" in first_page
         
         print(f"\n[OK] Integration Test 4 PASSED: Data ready for Agent 03")
         print(f"  Page count: {len(inventory['pages'])}")
