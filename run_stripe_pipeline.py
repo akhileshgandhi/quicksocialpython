@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 sys.stdout.reconfigure(encoding='utf-8')
 
 from seo_agents.agents.intake import IntakeAgent
@@ -85,7 +85,14 @@ async def run_pipeline(storage_dir):
     print(f'Config: crawl_depth={CRAWL_CONFIG["crawl_depth"]}, max_pages={CRAWL_CONFIG["max_pages"]}')
     print('')
     
-    agent_01 = IntakeAgent(None, 'meta-llama/llama-4-scout-17b-16e-instruct', storage_dir)
+    import google.genai as genai
+    import os
+    api_key = os.getenv('GEMINI_API_KEY')
+    if not api_key:
+        api_key = 'AIzaSyCt10dVCIUpKelnHqrlStbqPpM_Ymugko0'
+    gemini_client = genai.Client(api_key=api_key)
+    
+    agent_01 = IntakeAgent(gemini_client, 'gemini-2.5-flash-lite', storage_dir)
     await agent_01.execute(state)
     
     # Format Agent 01 output nicely
@@ -127,7 +134,7 @@ async def run_pipeline(storage_dir):
     print(f"Config: crawl_depth = {state.config.get('crawl_depth')}, max_pages = {state.config.get('max_pages')}")
     print('')
     
-    agent_02 = CrawlAgent(None, 'meta-llama/llama-4-scout-17b-16e-instruct', storage_dir)
+    agent_02 = CrawlAgent(gemini_client, 'gemini-2.5-flash-lite', storage_dir)
     await agent_02.execute(state)
     
     inventory = state.site_inventory
@@ -234,7 +241,7 @@ async def run_pipeline(storage_dir):
     print('Focus: Content quality, semantic analysis, accessibility, architecture')
     print('')
     
-    agent_03 = TechnicalAuditAgent(None, 'meta-llama/llama-4-scout-17b-16e-instruct', storage_dir)
+    agent_03 = TechnicalAuditAgent(gemini_client, 'gemini-2.5-flash-lite', storage_dir)
     await agent_03.execute(state)
     
     audit_report = state.technical_audit_report
@@ -292,7 +299,7 @@ async def run_pipeline(storage_dir):
 
     # Note: In the new architecture, Agent 08 (Competitor) runs AFTER Agent 04
     # So competitor_matrix is NOT available for this agent
-    agent_04 = KeywordResearchAgent(None, 'meta-llama/llama-4-scout-17b-16e-instruct', storage_dir)
+    agent_04 = KeywordResearchAgent(gemini_client, 'gemini-2.5-flash-lite', storage_dir)
     await agent_04.execute(state)
     
     keyword_universe = state.keyword_universe

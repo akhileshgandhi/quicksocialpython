@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-APXN Property SEO Agent Pipeline - Runs Agent 01 → 02 → 03 → 04
+APXN Property SEO Agent Pipeline - Runs Agent 01 → 02 → 03 → 04 → 05
 
 This pipeline tests the enhanced SEO workflow for APXN Property:
 - Agent 01: Intake (business context)
 - Agent 02: Crawl (site inventory with SEO enhancements)
 - Agent 03: Technical Audit (inference-based analysis)
 - Agent 04: Keyword Research (AEO/GEO enhancements)
+- Agent 05: Keyword Clustering (semantic clusters with AEO/GEO)
 
 Configurable crawl settings via config:
     max_pages: 50-200 for small/medium sites
@@ -16,16 +17,18 @@ Configurable crawl settings via config:
 import asyncio
 import json
 import sys
+import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 sys.stdout.reconfigure(encoding='utf-8')
 
 from seo_agents.agents.intake import IntakeAgent
 from seo_agents.agents.crawl import CrawlAgent
 from seo_agents.agents.technical import TechnicalAuditAgent
 from seo_agents.agents.keywords import KeywordResearchAgent
+from seo_agents.agents.clustering import ClusteringAgent
 from seo_agents.state import SEOState, save_seo_state
 
 
@@ -137,12 +140,19 @@ async def run_pipeline(storage_dir):
     print(f'Config: crawl_depth={CRAWL_CONFIG["crawl_depth"]}, max_pages={CRAWL_CONFIG["max_pages"]}')
     print('')
     
+    import google.genai as genai
+    # Use GEMINI_API_KEY to standardize with the .env file and main.py
+    api_key = os.getenv('GEMINI_API_KEY')
+    if not api_key:
+        api_key = 'AIzaSyCt10dVCIUpKelnHqrlStbqPpM_Ymugko0' # fallback just in case
+    gemini_client = genai.Client(api_key=api_key)
+    
     # ========== AGENT 01: INTAKE ==========
     print('='*60)
     print('AGENT 01: IntakeAgent')
     print('='*60)
     
-    agent_01 = IntakeAgent(None, 'meta-llama/llama-4-scout-17b-16e-instruct', storage_dir)
+    agent_01 = IntakeAgent(gemini_client, 'gemini-2.5-flash-lite', storage_dir)
     await agent_01.execute(state)
     
     # Format Agent 01 output nicely
@@ -207,7 +217,7 @@ async def run_pipeline(storage_dir):
     print(f"Config: crawl_depth = {state.config.get('crawl_depth')}, max_pages = {state.config.get('max_pages')}")
     print('')
     
-    agent_02 = CrawlAgent(None, 'meta-llama/llama-4-scout-17b-16e-instruct', storage_dir)
+    agent_02 = CrawlAgent(gemini_client, 'gemini-2.5-flash-lite', storage_dir)
     await agent_02.execute(state)
     
     inventory = state.site_inventory
@@ -315,7 +325,7 @@ async def run_pipeline(storage_dir):
     print('Focus: Content quality, semantic analysis, accessibility, architecture')
     print('')
     
-    agent_03 = TechnicalAuditAgent(None, 'meta-llama/llama-4-scout-17b-16e-instruct', storage_dir)
+    agent_03 = TechnicalAuditAgent(gemini_client, 'gemini-2.5-flash-lite', storage_dir)
     await agent_03.execute(state)
     
     audit_report = state.technical_audit_report
@@ -374,7 +384,7 @@ async def run_pipeline(storage_dir):
     
     # Note: In the new architecture, Agent 08 (Competitor) runs AFTER Agent 04
     # So competitor_matrix is NOT available for this agent
-    agent_04 = KeywordResearchAgent(None, 'meta-llama/llama-4-scout-17b-16e-instruct', storage_dir)
+    agent_04 = KeywordResearchAgent(gemini_client, 'gemini-2.5-flash-lite', storage_dir)
     await agent_04.execute(state)
     
     keyword_universe = state.keyword_universe
@@ -428,8 +438,64 @@ async def run_pipeline(storage_dir):
     print(f'Saved to: {project_dir}/project.json')
     print('')
     
+    # ================== AGENT 05: CLUSTERING ==================
     print('='*60)
-    print('PIPELINE COMPLETE (Agents 01-04)')
+    print('AGENT 05: ClusteringAgent (Semantic Clusters)')
+    print('='*60)
+    print('Input: keyword_universe (from Agent 04)')
+    print('Focus: Semantic clustering with hub/spoke relationships')
+    print('')
+    
+    agent_05 = ClusteringAgent(gemini_client, 'gemini-2.5-flash-lite', storage_dir)
+    await agent_05.execute(state)
+    
+    keyword_clusters = state.keyword_clusters
+    if hasattr(keyword_clusters, 'model_dump'):
+        clusters = keyword_clusters.model_dump()
+    else:
+        clusters = keyword_clusters
+    
+    print(f'\nTotal Clusters: {clusters.get("total_clusters", 0)}')
+    print(f'Total Keywords Clustered: {clusters.get("total_keywords_clustered", 0)}')
+    print(f'New Pages Needed: {clusters.get("new_pages_needed", 0)}')
+    print(f'High Priority Clusters: {clusters.get("high_priority_clusters", 0)}')
+    
+    print(f'\nAEO Opportunities:')
+    print(f'  Featured Snippet Candidates: {clusters.get("featured_snippet_candidates", 0)}')
+    print(f'  Voice Search Candidates: {clusters.get("voice_search_candidates", 0)}')
+    print(f'  AI Overview Candidates: {clusters.get("ai_overview_candidates", 0)}')
+    
+    print(f'\nHub/Spoke Relationships:')
+    print(f'  Hub Clusters: {clusters.get("hub_clusters", [])}')
+    print(f'  Spoke Clusters: {clusters.get("spoke_clusters", [])}')
+    
+    cluster_list = clusters.get('clusters', [])
+    display_cluster_count = min(10, len(cluster_list))
+    
+    print(f'\nCluster Details (first {display_cluster_count}):')
+    for i, cl in enumerate(cluster_list[:display_cluster_count], 1):
+        cluster_id = cl.get('cluster_id', '')
+        cluster_name = cl.get('cluster_name', '')
+        primary_kw = cl.get('primary_keyword', '')
+        intent = cl.get('intent', '')
+        page_type = cl.get('recommended_page_type', '')
+        priority = cl.get('priority_score', 0)
+        link_priority = cl.get('internal_link_priority', 'none')
+        surfaces = cl.get('answer_surface_targets', [])
+        surface_str = ', '.join(str(s).replace('_', ' ') for s in surfaces[:3]) if surfaces else 'none'
+        
+        print(f'  {i}. {cluster_name}')
+        print(f'     Primary: {primary_kw}')
+        print(f'     Intent: {intent} | Page Type: {page_type} | Priority: {priority}')
+        print(f'     Link Role: {link_priority} | Answer Surfaces: {surface_str}')
+    
+    print('')
+    save_seo_state(state, storage_dir)
+    print(f'Saved to: {project_dir}/project.json')
+    print('')
+    
+    print('='*60)
+    print('PIPELINE COMPLETE (Agents 01-05)')
     print('='*60)
     print(f'Project: {project_id}')
     print(f'Website: {state.seo_project_context.get("website_url")}')
@@ -437,6 +503,7 @@ async def run_pipeline(storage_dir):
     print(f'Depth reached: {inv.get("crawl_depth_reached")}')
     print(f'Health Score: {report.get("overall_health_score")}/100')
     print(f'Total Keywords: {universe.get("total_keywords", 0)}')
+    print(f'Total Clusters: {clusters.get("total_clusters", 0)}')
     print(f'AEO Opportunities: {universe.get("featured_snippet_opportunities", 0)} featured, {universe.get("ai_overview_opportunities", 0)} AI Overview')
     print('')
 

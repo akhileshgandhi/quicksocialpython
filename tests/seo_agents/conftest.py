@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock
@@ -30,6 +30,77 @@ class MockGeminiResponse:
         self.text = text
 
 
+class MockModels:
+    def __init__(self, parent: MockGeminiClient):
+        self.parent = parent
+        
+    def generate_content(self, model: str = None, contents: str = None, **kwargs) -> MockGeminiResponse:
+        """Mock the Gemini generate_content method."""
+        # Handle both positional and keyword arguments
+        if contents is None and len(kwargs.get('contents', '')) > 0:
+            contents = kwargs.get('contents', '')
+        if model is None:
+            model = kwargs.get('model', 'test-model')
+            
+        self.parent._call_count += 1
+        
+        # Log the call
+        self.parent._call_log.append({
+            "call_number": self.parent._call_count,
+            "model": model,
+            "prompt_length": len(contents) if contents else 0,
+            "prompt_preview": (contents[:100] + "...") if contents and len(contents) > 100 else (contents or ""),
+        })
+        
+        # Raise exception if configured
+        if self.parent._raise_on_call:
+            exc = self.parent._raise_on_call
+            self.parent._raise_on_call = None
+            raise exc
+        
+        # Check for prompt-specific responses
+        if contents:
+            for prompt_key, response in self.parent._responses_by_prompt.items():
+                if prompt_key in contents:
+                    return MockGeminiResponse(text=response)
+            
+            # Return from sequential responses if available
+            if self.parent._responses:
+                if self.parent._response_index < len(self.parent._responses):
+                    response = self.parent._responses[self.parent._response_index]
+                    self.parent._response_index += 1
+                    return MockGeminiResponse(text=response)
+        
+        # Return default response
+        if self.parent._default_response:
+            return MockGeminiResponse(text=self.parent._default_response)
+        
+        # Return a default valid response
+        return MockGeminiResponse(text=json.dumps({
+            "business_name": "Test Company",
+            "website_url": "https://example.com",
+            "industry": "Technology",
+            "target_audience": ["Businesses", "Developers"],
+            "primary_goals": ["Increase traffic", "Generate leads"],
+            "geographic_focus": "Global",
+            "competitors": ["competitor1.com", "competitor2.com"],
+            "brand_voice": "Professional and technical",
+            "key_products_services": ["Software", "Consulting"],
+        }))
+
+class MockAioModels:
+    """Mock async models for Gemini aio client."""
+    def __init__(self, parent: MockGeminiClient):
+        self.parent = parent
+        self._sync_models = MockModels(parent)
+    
+    def generate_content(self, model: str = None, contents: str = None, **kwargs):
+        """Return a coroutine that resolves to the sync response."""
+        async def async_wrapper():
+            return self._sync_models.generate_content(model, contents, **kwargs)
+        return async_wrapper()
+
+
 class MockGeminiClient:
     """Mock Gemini client that returns configurable responses."""
     
@@ -41,6 +112,8 @@ class MockGeminiClient:
         self._default_response: Optional[str] = None
         self._raise_on_call: Optional[Exception] = None
         self._call_log: List[Dict[str, Any]] = []
+        self.models = MockModels(self)
+        self.aio = MockAioModels(self)
     
     def set_response(self, response: str) -> None:
         """Set a single response for all calls."""
@@ -58,53 +131,6 @@ class MockGeminiClient:
     def set_raise_on_call(self, exception: Exception) -> None:
         """Configure the client to raise an exception on the next call."""
         self._raise_on_call = exception
-    
-    async def generate_content_async(self, model: str, contents: str) -> MockGeminiResponse:
-        """Mock the Gemini generate_content_async method."""
-        self._call_count += 1
-        
-        # Log the call
-        self._call_log.append({
-            "call_number": self._call_count,
-            "model": model,
-            "prompt_length": len(contents),
-            "prompt_preview": contents[:100] + "..." if len(contents) > 100 else contents,
-        })
-        
-        # Raise exception if configured
-        if self._raise_on_call:
-            exc = self._raise_on_call
-            self._raise_on_call = None
-            raise exc
-        
-        # Check for prompt-specific responses
-        for prompt_key, response in self._responses_by_prompt.items():
-            if prompt_key in contents:
-                return MockGeminiResponse(text=response)
-        
-        # Return from sequential responses if available
-        if self._responses:
-            if self._response_index < len(self._responses):
-                response = self._responses[self._response_index]
-                self._response_index += 1
-                return MockGeminiResponse(text=response)
-        
-        # Return default response
-        if self._default_response:
-            return MockGeminiResponse(text=self._default_response)
-        
-        # Return a default valid response
-        return MockGeminiResponse(text=json.dumps({
-            "business_name": "Test Company",
-            "website_url": "https://example.com",
-            "industry": "Technology",
-            "target_audience": ["Businesses", "Developers"],
-            "primary_goals": ["Increase traffic", "Generate leads"],
-            "geographic_focus": "Global",
-            "competitors": ["competitor1.com", "competitor2.com"],
-            "brand_voice": "Professional and technical",
-            "key_products_services": ["Software", "Consulting"],
-        }))
     
     @property
     def call_count(self) -> int:
@@ -153,8 +179,8 @@ def sample_seo_state(tmp_storage_dir: Path) -> SEOState:
                 "key_products_services": ["Marketing Automation", "Analytics Dashboard"],
             },
         },
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     return state
 

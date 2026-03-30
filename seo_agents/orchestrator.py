@@ -5,6 +5,7 @@ handles gate pausing, state saving, and error recovery.
 
 from __future__ import annotations
 
+import fcntl
 import logging
 import os
 import time
@@ -50,6 +51,7 @@ class SEOOrchestrator:
         self.model = gemini_model
         self.storage_dir = storage_dir
         self._agents = self._initialize_agents()
+        self._lock_file = None  # File handle for fcntl locking
 
     def _initialize_agents(self) -> List[SEOBaseAgent]:
         return [
@@ -100,32 +102,34 @@ class SEOOrchestrator:
         return self.storage_dir / "seo_projects" / project_id / ".lock"
 
     def _acquire_lock(self, project_id: str) -> bool:
-        """Acquire lock for project. Returns True if acquired, False if already locked."""
+        """Acquire lock for project using fcntl. Returns True if acquired, False if already locked."""
         lock_path = self._get_lock_path(project_id)
-        
-        if lock_path.exists():
-            # Check if lock is stale (older than max age)
-            try:
-                mtime = lock_path.stat().st_mtime
-                if time.time() - mtime < LOCK_FILE_MAX_AGE_SECONDS:
-                    return False  # Lock is valid and not stale
-                # Lock is stale, remove it
-                lock_path.unlink()
-            except OSError:
-                pass
-        
-        # Create lock file
         lock_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_path.write_text(f"{os.getpid()}")
-        return True
+        
+        try:
+            # Open lock file in append mode, create if doesn't exist
+            self._lock_file = open(lock_path, 'a')
+            # Try to acquire exclusive lock (non-blocking)
+            fcntl.flock(self._lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # Write PID to file
+            self._lock_file.write(f"{os.getpid()}\n")
+            self._lock_file.flush()
+            return True
+        except (IOError, OSError):
+            # Lock already held
+            if self._lock_file:
+                self._lock_file.close()
+                self._lock_file = None
+            return False
 
     def _release_lock(self, project_id: str) -> None:
         """Release lock for project."""
-        lock_path = self._get_lock_path(project_id)
         try:
-            if lock_path.exists():
-                lock_path.unlink()
-        except OSError:
+            if self._lock_file:
+                fcntl.flock(self._lock_file.fileno(), fcntl.LOCK_UN)
+                self._lock_file.close()
+                self._lock_file = None
+        except (IOError, OSError):
             pass
 
     def run(self, project_id: str) -> SEOState:

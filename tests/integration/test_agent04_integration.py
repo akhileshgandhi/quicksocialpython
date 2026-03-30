@@ -37,18 +37,23 @@ class MockGeminiClient:
         self._responses = []
         self._response_index = 0
         self._call_count = 0
+        self.models = self  # Add .models attribute for new API
     
     def set_responses(self, responses):
         self._responses = responses
         self._response_index = 0
     
-    async def generate_content_async(self, model: str, contents: str):
+    def generate_content(self, model: str = None, contents: str = None, **kwargs):
         self._call_count += 1
         if self._responses and self._response_index < len(self._responses):
             response = self._responses[self._response_index]
             self._response_index += 1
             return MockGeminiResponse(text=response)
         return MockGeminiResponse(text=json.dumps({}))
+    
+    async def generate_content_async(self, model: str, contents: str):
+        # Delegate to sync version for compatibility
+        return self.generate_content(model, contents)
     
     @property
     def call_count(self):

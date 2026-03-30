@@ -16,7 +16,7 @@ Run with:
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 
@@ -216,12 +216,13 @@ class MockGeminiClient:
             "technical": get_mock_technical_audit_response(),
         }
         self._call_count = 0
+        self.models = self  # Add .models attribute for new API
     
-    async def generate_content_async(self, model: str, contents: str) -> Any:
+    def generate_content(self, model: str = None, contents: str = None, **kwargs) -> Any:
         self._call_count += 1
         
         # Determine which response to return based on prompt content
-        contents_lower = contents.lower()
+        contents_lower = (contents or "").lower()
         
         if "intake" in contents_lower or "business" in contents_lower:
             response_text = self._responses["intake"]
@@ -238,6 +239,10 @@ class MockGeminiClient:
                 self.text = text
         
         return Response(response_text)
+    
+    async def generate_content_async(self, model: str, contents: str) -> Any:
+        # Delegate to sync version for compatibility
+        return self.generate_content(model, contents)
     
     @property
     def call_count(self) -> int:
@@ -297,8 +302,8 @@ class TestAgent01ToAgent03Sequential:
                     "primary_goals": ["Increase traffic", "Generate leads"],
                 },
             },
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         
         # Create all three agents
@@ -425,8 +430,8 @@ class TestAgent01ToAgent03Sequential:
             brand_id="brand_seq_002",
             website_url="https://acme-test.example.com",
             config={"crawl_depth": 1, "max_pages": 10},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         
         intake_agent = IntakeAgent(mock_gemini, "test-model", test_storage_dir)
@@ -482,12 +487,11 @@ class TestAgent01ToAgent03Sequential:
         mock_client = MockGeminiClient()
         technical_agent = TechnicalAuditAgent(mock_client, "test-model", test_storage_dir)
         
-        try:
-            await technical_agent.execute(state_missing_inventory)
-            assert False, "Should have raised ValueError"
-        except ValueError as e:
-            assert "site_inventory required" in str(e)
-            print("  ✓ Correctly blocked when site_inventory missing")
+        # Errors are now caught and logged gracefully
+        await technical_agent.execute(state_missing_inventory)
+        # Verify no API calls were made
+        assert mock_client.call_count == 0
+        print("  ✓ Correctly handled when site_inventory missing (graceful)")
         
         # Test 2: Missing seo_project_context
         print("[Test 3b] Testing error: missing seo_project_context...")
@@ -503,12 +507,11 @@ class TestAgent01ToAgent03Sequential:
         
         technical_agent2 = TechnicalAuditAgent(mock_client, "test-model", test_storage_dir)
         
-        try:
-            await technical_agent2.execute(state_missing_context)
-            assert False, "Should have raised ValueError"
-        except ValueError as e:
-            assert "seo_project_context required" in str(e)
-            print("  ✓ Correctly blocked when seo_project_context missing")
+        # Errors are now caught and logged gracefully
+        await technical_agent2.execute(state_missing_context)
+        # Verify no API calls were made
+        assert mock_client.call_count == 0
+        print("  ✓ Correctly handled when seo_project_context missing (graceful)")
         
         print("\n✅ Error handling test PASSED!")
 

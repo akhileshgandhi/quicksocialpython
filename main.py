@@ -8,6 +8,10 @@ import sys
 import logging
 from dotenv import load_dotenv
 
+# ================= FORCE LOAD ENV FROM .env =================
+# This ensures .env values override any system environment variables
+load_dotenv(override=True)
+
 # ================= MODULE IMPORTS =================
 from campaign import create_campaign_router
 from smartpost import create_smartpost_router
@@ -17,7 +21,6 @@ from regenerate import create_regenerate_router
 from seo_router import create_seo_router
 
 # ================= CONFIGURATION =================
-load_dotenv()
 sys.stdout.reconfigure(encoding='utf-8')
 
 logging.basicConfig(

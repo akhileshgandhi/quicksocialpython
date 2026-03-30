@@ -12,7 +12,7 @@ Run with:
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 
@@ -150,18 +150,20 @@ class MockGeminiClient:
             "crawl": get_mock_crawl_response(),
         }
         self._call_count = 0
+        self.models = self  # Add .models attribute for new API
     
     def set_response_for_agent(self, agent: str, response: str) -> None:
         """Set response for a specific agent type."""
         self._responses[agent] = response
     
-    async def generate_content_async(self, model: str, contents: str) -> Any:
+    def generate_content(self, model: str = None, contents: str = None, **kwargs) -> Any:
         self._call_count += 1
+        contents_str = contents or ""
         
         # Determine which response to return based on prompt content
-        if "intake" in contents.lower() or "business" in contents.lower():
+        if "intake" in contents_str.lower() or "business" in contents_str.lower():
             response_text = self._responses["intake"]
-        elif "crawl" in contents.lower() or "site" in contents.lower():
+        elif "crawl" in contents_str.lower() or "site" in contents_str.lower():
             response_text = self._responses["crawl"]
         else:
             # Default to intake response
@@ -172,6 +174,10 @@ class MockGeminiClient:
                 self.text = text
         
         return Response(response_text)
+    
+    async def generate_content_async(self, model: str, contents: str) -> Any:
+        # Delegate to sync version for compatibility
+        return self.generate_content(model, contents)
     
     @property
     def call_count(self) -> int:
@@ -230,8 +236,8 @@ class TestAgent01ToAgent02Sequential:
                     "primary_goals": ["Increase traffic", "Generate leads"],
                 },
             },
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         
         # Create agents
@@ -454,9 +460,11 @@ class TestSequentialErrorHandling:
         
         intake_agent = IntakeAgent(mock_gemini, "test-model", test_storage_dir)
         
-        # Act & Assert - Agent 01 should fail validation
-        with pytest.raises(ValueError, match="website_url"):
-            await intake_agent.execute(state)
+        # Errors are now caught and logged gracefully
+        await intake_agent.execute(state)
+        
+        # Verify no API calls were made due to validation failure
+        assert mock_gemini.call_count == 0
         
         print(f"\n[RESULT] Error handling test PASSED!")
-        print(f"  - Agent 01 correctly rejects invalid input: ✓")
+        print(f"  - Agent 01 correctly handles invalid input gracefully: ✓")

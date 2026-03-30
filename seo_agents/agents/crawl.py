@@ -217,6 +217,9 @@ class CrawlAgent(SEOBaseAgent):
         # Execute crawl via LLM
         raw_inventory = await self._call_gemini(prompt=prompt)
         
+        if not raw_inventory:
+            raise ValueError(f"CrawlAgent received empty response from LLM for website: {website_url}")
+
         # Normalize and validate response
         inventory = self._normalize_inventory(raw_inventory)
 

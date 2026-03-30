@@ -7,7 +7,8 @@ This module provides reusable utilities for:
 - Common validation patterns
 """
 
-from typing import Any, Dict, List, Type, TypeVar
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union
+from pydantic import BaseModel
 
 T = TypeVar("T")
 
@@ -194,3 +195,97 @@ def set_nested_field(obj: Dict[str, Any], path: str, value: Any) -> None:
         current = current[part]
     
     current[parts[-1]] = value
+
+
+def normalize_pydantic_list(
+    items: Union[List[Dict], List[BaseModel]],
+    model_class: Type[BaseModel],
+) -> List[BaseModel]:
+    """Normalize a list of dicts to Pydantic models.
+    
+    Handles mixed lists containing both dicts and Pydantic models.
+    
+    Args:
+        items: List of items to normalize
+        model_class: Pydantic model class to validate against
+        
+    Returns:
+        List of validated Pydantic models
+        
+    Example:
+        >>> from myapp.schemas import PageRecord
+        >>> pages = normalize_pydantic_list(raw_pages, PageRecord)
+    """
+    result = []
+    for item in items:
+        if isinstance(item, model_class):
+            result.append(item)
+        elif isinstance(item, dict):
+            try:
+                result.append(model_class(**item))
+            except Exception:
+                # If validation fails, keep the original dict
+                result.append(item)
+        else:
+            result.append(item)
+    return result
+
+
+def normalize_pydantic_optional(
+    value: Any,
+    model_class: Type[BaseModel],
+) -> Optional[BaseModel]:
+    """Normalize a value to a Pydantic model if possible.
+    
+    Args:
+        value: Value to normalize (dict, Pydantic model, or None)
+        model_class: Pydantic model class to validate against
+        
+    Returns:
+        Validated Pydantic model, original value, or None
+    """
+    if value is None:
+        return None
+    
+    if isinstance(value, model_class):
+        return value
+    
+    if isinstance(value, dict):
+        try:
+            return model_class(**value)
+        except Exception:
+            return value
+    
+    return value
+
+
+def normalize_optional_float(value: Any, default: float = 0.0) -> float:
+    """Normalize an optional float field.
+    
+    Handles:
+        - None → default
+        - float → float (unchanged)
+        - int → float
+        - string digits → float
+        - invalid → default
+        
+    Args:
+        value: Value to normalize
+        default: Default if value is None/invalid
+        
+    Returns:
+        Float value
+    """
+    if value is None:
+        return default
+    
+    if isinstance(value, float):
+        return value
+    
+    if isinstance(value, (int, str)):
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return default
+    
+    return default

@@ -217,10 +217,11 @@ You also configure how deep the crawl should go:
 
 After Agent 02 completes, the data is used by subsequent agents:
 
-- **Agent 03** (Technical Audit) — Analyzes the crawl data for technical issues
-- **Agent 04** (Competitor Analysis) — Compares against competitors you listed
-- **Agent 05** (Keyword Research) — Finds keywords based on your industry
-- And so on...
+- **Agent 04** (Keyword Research) — Finds keywords based on your industry
+- **Agent 05** (Keyword Clustering) — Groups keywords into semantic clusters
+- **Agent 06** (Page Mapping) — Maps keywords to pages
+- **Agent 07** (Gap Analysis) — Analyzes content gaps
+- **Agent 08** (Competitor Analysis) — Compares against competitors you listed
 
 ---
 
