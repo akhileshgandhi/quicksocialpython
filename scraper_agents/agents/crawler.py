@@ -114,36 +114,38 @@ _PW_COLOR_JS = """(() => {
 
 # Playwright JS snippet for computed font extraction from rendered DOM
 _PW_FONT_JS = """(() => {
-    const fonts = {};
-    function addFont(family, usage) {
+    const results = [];
+    const seen = new Set();
+    function addFont(family, usage, source) {
         if (!family) return;
-        // Take first font from fallback chain: "Geist, Arial, sans-serif" → "Geist"
-        const name = family.split(',')[0].trim().replace(/['"]/g, '');
-        if (!name || name.length < 2) return;
-        // Skip generic families
-        const generic = new Set(['serif','sans-serif','monospace','cursive','fantasy','system-ui',
-            'ui-sans-serif','ui-serif','ui-monospace','-apple-system','BlinkMacSystemFont',
-            'Segoe UI','Roboto','Helvetica Neue','Arial','Helvetica','sans','Times New Roman',
-            'Times','Courier New','Courier']);
-        if (generic.has(name)) return;
-        if (!fonts[name]) fonts[name] = {family: name, usage: usage, source: 'computed_style'};
-        else if (fonts[name].usage === 'unknown') fonts[name].usage = usage;
+        // Take first font from comma-separated list
+        family = family.split(',')[0].trim().replace(/['"]/g, '');
+        if (!family || family === 'inherit' || family === 'initial') return;
+        const key = family.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        results.push({family: family, usage: usage, source: source});
     }
-    // Headings
-    for (const tag of ['h1','h2','h3']) {
-        const el = document.querySelector(tag);
-        if (el) addFont(getComputedStyle(el).fontFamily, 'heading');
+    // Check headings
+    for (const sel of ['h1','h2','h3']) {
+        try {
+            const el = document.querySelector(sel);
+            if (el) addFont(getComputedStyle(el).fontFamily, 'heading', 'computed:'+sel);
+        } catch(e) {}
     }
-    // Body text
-    const bodyEl = document.querySelector('body');
-    if (bodyEl) addFont(getComputedStyle(bodyEl).fontFamily, 'body');
-    // Paragraph
-    const p = document.querySelector('p');
-    if (p) addFont(getComputedStyle(p).fontFamily, 'body');
-    // Nav
-    const nav = document.querySelector('nav a, header a');
-    if (nav) addFont(getComputedStyle(nav).fontFamily, 'unknown');
-    return Object.values(fonts);
+    // Check body/paragraph
+    for (const sel of ['body','p','main']) {
+        try {
+            const el = document.querySelector(sel);
+            if (el) addFont(getComputedStyle(el).fontFamily, 'body', 'computed:'+sel);
+        } catch(e) {}
+    }
+    // Check nav
+    try {
+        const nav = document.querySelector('nav a, header a');
+        if (nav) addFont(getComputedStyle(nav).fontFamily, 'body', 'computed:nav');
+    } catch(e) {}
+    return results;
 })()"""
 
 
@@ -207,36 +209,51 @@ class CrawlerAgent(BaseAgent):
                     if result.get("screenshot_png") and not state.pw_screenshot:
                         state.pw_screenshot = result["screenshot_png"]
 
-                    # SPA supplement: if Playwright rendered HTML has product data
-                    # that the static HTML missed (JS-rendered product cards),
-                    # extract images and JSON-LD from the rendered DOM.
+                    # SPA supplement: extract contacts, social, images, JSON-LD
+                    # from JS-rendered DOM (catches data invisible in static HTML)
                     pw_html = result.get("rendered_html", "")
                     if pw_html and len(pw_html) > 500:
                         pw_soup = BeautifulSoup(pw_html, "html.parser")
 
-                        # Supplement images from rendered DOM (SPA product cards)
+                        # Supplement images from rendered DOM
                         pw_images = extract_all_images(pw_soup, state.base_url)
                         if len(pw_images) > len(state.images):
-                            existing = {img.get("src") for img in state.images}
-                            new_imgs = [i for i in pw_images if i.get("src") not in existing]
+                            existing_srcs = {img.get("src") for img in state.images}
+                            new_imgs = [i for i in pw_images if i.get("src") not in existing_srcs]
                             if new_imgs:
                                 state.images.extend(new_imgs)
                                 self.log(f"Playwright DOM added {len(new_imgs)} image(s)")
 
-                        # Supplement JSON-LD from rendered DOM (SPA-injected structured data)
+                        # Supplement JSON-LD from rendered DOM
                         pw_jsonld = extract_jsonld(pw_soup)
                         if pw_jsonld and not state.structured_data:
                             state.structured_data = pw_jsonld
-                            self.log(f"Playwright DOM provided {len(pw_jsonld)} JSON-LD block(s)")
                         elif pw_jsonld:
-                            # Merge: add any new JSON-LD blocks
                             existing_str = {json.dumps(d, sort_keys=True) for d in state.structured_data}
                             for block in pw_jsonld:
                                 if json.dumps(block, sort_keys=True) not in existing_str:
                                     state.structured_data.append(block)
 
+                        # Supplement contacts + social from rendered DOM
+                        # (SPA footers are invisible in static HTML)
+                        from scraper_agents.extractors.contact_extraction import (
+                            extract_social_links,
+                            extract_contact_info,
+                        )
+                        pw_social = extract_social_links(pw_soup, state.base_url)
+                        if pw_social:
+                            if not hasattr(state, '_pw_social'):
+                                state._pw_social = pw_social
+                        pw_contact = extract_contact_info(pw_soup, state.base_url)
+                        if pw_contact:
+                            if not hasattr(state, '_pw_contact'):
+                                state._pw_contact = pw_contact
+
                 except Exception as e:
                     self.log(f"Playwright color extraction failed: {e}", level="warning")
+
+            if state.pw_screenshot and not self.should_stop():
+                await self._visual_analysis(state)
 
         async def _sitemap_and_listing():
             """Steps 3 + 3.5: Sitemap parsing → listing page discovery."""
@@ -292,10 +309,11 @@ class CrawlerAgent(BaseAgent):
 
         await asyncio.gather(_pw_and_visual(), _sitemap_and_listing())
 
-        # Step 4: Combined visual analysis + site classification (single Gemini call)
-        # Sends screenshot + text together if screenshot available, text-only otherwise
+        # Step 4: Classify site + categorize links via Gemini
+        # Always run — Gemini can classify from title/meta even with 0 nav_links
         if not self.should_stop():
-            await self._visual_and_classify(state)
+            await self._classify_site(state)
+            self.log(f"site_type={state.site_type}, categories={list(state.site_map.keys())}")
 
         # Step 5: Fetch + cache key pages concurrently
         if not self.should_stop() and state.deep_scrape:
@@ -544,7 +562,6 @@ class CrawlerAgent(BaseAgent):
                 ),
                 timeout=15,
             )
-            self.track_usage(response, "vision_enrich_products", state)
             text = (response.text or "").strip()
             if "```json" in text:
                 text = text.split("```json")[1].split("```")[0].strip()
@@ -707,20 +724,25 @@ class CrawlerAgent(BaseAgent):
             except Exception:
                 computed_colors = []
             try:
-                computed_fonts = page.evaluate(_PW_FONT_JS)
+                computed_fonts = page.evaluate(_PW_FONT_JS) if hasattr(page, 'evaluate') else []
             except Exception:
                 computed_fonts = []
             try:
                 screenshot = page.screenshot(type="png", full_page=False)
             except Exception:
                 screenshot = None
+            # Capture rendered DOM HTML for SPA supplement (contacts, images, JSON-LD)
             try:
                 rendered_html = page.content()
             except Exception:
-                rendered_html = None
+                rendered_html = ""
             browser.close()
-            return {"computed_colors": computed_colors, "computed_fonts": computed_fonts,
-                    "screenshot_png": screenshot, "rendered_html": rendered_html}
+            return {
+                "computed_colors": computed_colors,
+                "computed_fonts": computed_fonts,
+                "screenshot_png": screenshot,
+                "rendered_html": rendered_html,
+            }
         finally:
             pw.stop()
 
@@ -783,7 +805,6 @@ class CrawlerAgent(BaseAgent):
                 ),
                 timeout=TIMEOUTS.get("visual_analysis", 15),
             )
-            self.track_usage(response, "visual_analysis", state)
 
             text = (response.text or "").strip()
             # Strip markdown fences if present
@@ -820,139 +841,6 @@ class CrawlerAgent(BaseAgent):
         except Exception as e:
             self.log(f"visual analysis failed: {e}", level="warning")
 
-    async def _visual_and_classify(self, state: ScrapeState) -> None:
-        """Combined visual analysis + site classification in a SINGLE Gemini call.
-
-        When a screenshot is available, sends screenshot + text together (multimodal).
-        When no screenshot, falls back to text-only classification.
-        Saves one Gemini API call (~6-8s, ~2K-3K tokens) compared to separate calls.
-        """
-        import base64
-
-        nav_text = "\n".join(
-            f"- {l.get('text', '')}: {l.get('url', '')}"
-            for l in state.nav_links[:30]
-        )
-        if not nav_text and state.headings:
-            headings_text = "\n".join(
-                f"- [{h['level']}] {h['text']}" for h in state.headings[:20]
-            )
-            nav_text = f"(no nav links found — page headings for context:\n{headings_text})"
-        nav_text = nav_text or "(no nav links found)"
-
-        try:
-            from google import genai
-
-            if state.pw_screenshot:
-                # ── Multimodal: screenshot + text → visual analysis + classification
-                from scraper_agents.prompts.visual_and_classify import VISUAL_AND_CLASSIFY_PROMPT
-
-                prompt_text = VISUAL_AND_CLASSIFY_PROMPT.format(
-                    company_name_hint=state.company_name_hint or state.domain,
-                    domain=state.domain,
-                    title=state.title,
-                    meta_description=state.meta_description[:500],
-                    nav_links_text=nav_text,
-                )
-                b64_screenshot = base64.b64encode(state.pw_screenshot).decode()
-                contents = [
-                    {"inline_data": {"mime_type": "image/png", "data": b64_screenshot}},
-                    prompt_text,
-                ]
-                response = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        self.gemini.models.generate_content,
-                        model=self.model,
-                        contents=contents,
-                        config=genai.types.GenerateContentConfig(
-                            temperature=0.0,
-                            response_mime_type="application/json",
-                        ),
-                    ),
-                    timeout=TIMEOUTS.get("visual_analysis", 15),
-                )
-            else:
-                # ── Text-only: no screenshot available
-                from scraper_agents.prompts.visual_and_classify import CLASSIFY_ONLY_PROMPT
-
-                prompt = CLASSIFY_ONLY_PROMPT.format(
-                    title=state.title,
-                    meta_description=state.meta_description[:500],
-                    domain=state.domain,
-                    nav_links_text=nav_text,
-                    visual_context="",
-                )
-                response = await asyncio.to_thread(
-                    self.gemini.models.generate_content,
-                    model=self.model,
-                    contents=prompt,
-                    config=genai.types.GenerateContentConfig(
-                        temperature=0.0,
-                        response_mime_type="application/json",
-                    ),
-                )
-
-            self.track_usage(response, "visual_and_classify", state)
-
-            text = (response.text or "").strip()
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0].strip()
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0].strip()
-            if not text.startswith("{"):
-                start = text.find("{")
-                end = text.rfind("}") + 1
-                if start != -1 and end > start:
-                    text = text[start:end]
-
-            data = json.loads(text)
-
-            # ── Apply visual analysis results ──
-            if state.pw_screenshot:
-                state.visual_analysis = {
-                    "nav_mapping": data.get("nav_mapping", {}),
-                    "image_content": data.get("image_content", []),
-                    "product_pages": data.get("product_pages", []),
-                    "site_type_hint": data.get("site_type", ""),
-                }
-                self.log(
-                    f"visual analysis: nav_mapping={len(data.get('nav_mapping', {}))}, "
-                    f"image_content={len(data.get('image_content', []))}, "
-                    f"site_type_hint={data.get('site_type')}"
-                )
-                # Add visually-identified product pages to listing_urls
-                for rel_path in data.get("product_pages", []):
-                    abs_url = state.base_url.rstrip("/") + "/" + rel_path.lstrip("/")
-                    if abs_url not in state.listing_urls:
-                        state.listing_urls.append(abs_url)
-                        self.log(f"visual analysis added listing URL: {abs_url}")
-
-            # ── Apply site classification results ──
-            state.site_type = data.get("site_type", "brand")
-            state.company_name = data.get("company_name", "") or state.company_name_hint or state.domain
-
-            for link_info in data.get("links", []):
-                cat = link_info.get("category", "other")
-                pi = PageInfo(
-                    url=link_info.get("url", ""),
-                    title=link_info.get("text", ""),
-                    category=cat,
-                    priority=link_info.get("priority", 3),
-                )
-                state.site_map.setdefault(cat, []).append(pi)
-
-            self.log(f"site_type={state.site_type}, categories={list(state.site_map.keys())}")
-
-        except asyncio.TimeoutError:
-            self.log("visual+classify timed out — falling back", level="warning")
-            self._fallback_classify(state)
-        except json.JSONDecodeError as e:
-            self.log(f"visual+classify JSON parse failed: {e}", level="warning")
-            self._fallback_classify(state)
-        except Exception as e:
-            self.log(f"visual+classify failed: {e}", level="warning")
-            self._fallback_classify(state)
-
     async def _try_fetch_url(self, url: str, state: ScrapeState) -> Optional[str]:
         """Try fetching a URL via HTTP, then Playwright fallback."""
         try:
@@ -971,10 +859,8 @@ class CrawlerAgent(BaseAgent):
                     return html
                 self.log(f"HTTP 200 but only {len(html)} chars — trying Playwright")
             else:
-                state._last_http_status = resp.status_code
                 self.log(f"HTTP {resp.status_code} for {url[:80]} — trying Playwright", level="warning")
         except Exception as e:
-            state._last_http_error = str(e)
             self.log(f"HTTP request failed for {url[:80]}: {e} — trying Playwright", level="warning")
 
         # Playwright fallback for this specific URL
@@ -1020,49 +906,15 @@ class CrawlerAgent(BaseAgent):
                            ["403 forbidden", "access denied", "checking your browser",
                             "enable javascript", "cloudflare", "ray id:"]):
                 self.log(f"Playwright got bot-rejection page for {url[:80]}", level="warning")
-                state.fail_reason = (
-                    "This website has bot protection (e.g., Cloudflare, Akamai) that blocks "
-                    "automated access. Both direct HTTP requests and headless browser attempts "
-                    "were rejected. The website cannot be scraped at this time."
-                )
                 return None
             if html:
                 self.log(f"Playwright: {len(html)} chars for {url[:80]}")
             return html
         except ImportError:
             self.log("Playwright not installed", level="warning")
-            state.fail_reason = "Playwright browser automation is not installed on the server."
             return None
         except Exception as e:
-            err_str = str(e).lower()
             self.log(f"Playwright failed for {url[:80]}: {e}", level="warning")
-            if "name_not_resolved" in err_str or "dns" in err_str:
-                state.fail_reason = (
-                    f"The domain could not be resolved (DNS failure). "
-                    f"Please check if the URL '{url}' is correct and the website is online."
-                )
-            elif "timeout" in err_str:
-                state.fail_reason = (
-                    "The website took too long to respond. It may be temporarily down "
-                    "or experiencing high traffic. Please try again later."
-                )
-            elif not state.fail_reason:
-                http_status = getattr(state, "_last_http_status", None)
-                if http_status == 403:
-                    state.fail_reason = (
-                        "This website returned HTTP 403 (Forbidden) and the browser fallback "
-                        "also failed. The site likely has bot protection that blocks automated access."
-                    )
-                elif http_status:
-                    state.fail_reason = (
-                        f"The website returned HTTP {http_status} and could not be loaded "
-                        f"in a browser either. Please check if the URL is correct."
-                    )
-                else:
-                    state.fail_reason = (
-                        f"Could not load the website. Both direct HTTP and browser attempts failed. "
-                        f"The site may be down, blocking automated access, or the URL may be incorrect."
-                    )
             return None
 
     # ------------------------------------------------------------------
@@ -1186,7 +1038,6 @@ class CrawlerAgent(BaseAgent):
                     response_mime_type="application/json",
                 ),
             )
-            self.track_usage(response, "classify_site", state)
             text = response.text or ""
             # Strip markdown fences + extract JSON substring
             text = text.strip()
@@ -1483,22 +1334,14 @@ class CrawlerAgent(BaseAgent):
         if added_jsonld:
             self.log(f"JSON-LD: {added_jsonld} products from structured data")
 
-        # === Priority 2: Gemini text analysis ===
-        # Skip product discovery when deterministic sources (nav, JSON-LD,
-        # sitemap, filenames) already found ≥5 products — this makes the
-        # pipeline deterministic (same HTML → same products every run).
-        # Gemini is still called for SERVICE extraction in all cases.
-        _deterministic_count = len(state.discovered_products) + len(state.sitemap_urls)
-        _skip_product_gemini = _deterministic_count >= 5
-
+        # === Priority 2: Gemini text analysis — ALWAYS runs for validation ===
+        # Even when nav/JSON-LD found products, Gemini cross-validates
+        # by reading actual page content. This catches cases where nav items
+        # are NOT real products (app store listings, subsection headers, etc.).
         gemini_products: List[Dict] = []
         gemini_services: List[Dict] = []
         if not self.should_stop():
-            if _skip_product_gemini:
-                self.log(f"skipping Gemini product discovery ({_deterministic_count} deterministic products) — services only")
-            gemini_products, gemini_services = await self._gemini_content_analysis(
-                state, services_only=_skip_product_gemini,
-            )
+            gemini_products, gemini_services = await self._gemini_content_analysis(state)
 
         # === Priority 3: Cross-validate nav products against Gemini results ===
         nav_sourced = [p for p in state.discovered_products if p.get("source") == "nav"]
@@ -1673,13 +1516,9 @@ class CrawlerAgent(BaseAgent):
             self.log(f"matched {matched} product images from page <img> tags")
 
     async def _gemini_content_analysis(
-        self, state: ScrapeState, *, services_only: bool = False,
+        self, state: ScrapeState
     ) -> tuple:
         """Gemini fallback: extract products/services from page text excerpts.
-
-        When *services_only* is True, the prompt tells Gemini to skip product
-        extraction (deterministic sources already found enough products) and
-        only return services.  This reduces non-determinism across runs.
 
         Returns (products_list, services_list).
         """
@@ -1738,22 +1577,12 @@ class CrawlerAgent(BaseAgent):
                 mapping = ", ".join(f'"{k}"={v}' for k, v in va["nav_mapping"].items())
                 visual_context += f"\nNavigation mapping from visual analysis: {mapping}"
 
-        # When deterministic sources already found enough products,
-        # tell Gemini to only extract services (skip product discovery).
-        services_only_hint = ""
-        if services_only:
-            services_only_hint = (
-                "\n\nIMPORTANT: Products have already been extracted from other sources. "
-                "Return an EMPTY products list (\"products\": []). "
-                "Only extract SERVICES from the page content."
-            )
-
         prompt = CONTENT_ANALYSIS_PROMPT.format(
             company_name=state.company_name or state.domain,
             website_url=state.website_url,
             site_type=state.site_type or "unknown",
             page_excerpts="\n\n---\n\n".join(excerpts),
-            visual_context=visual_context + services_only_hint,
+            visual_context=visual_context,
         )
 
         try:
@@ -1768,7 +1597,6 @@ class CrawlerAgent(BaseAgent):
                     response_mime_type="application/json",
                 ),
             )
-            self.track_usage(response, "content_analysis", state)
             text = response.text or ""
             text = text.strip()
             if "```json" in text:

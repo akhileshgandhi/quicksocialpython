@@ -67,7 +67,6 @@ class WebSearchAgent(BaseAgent):
                     tools=[types.Tool(google_search=types.GoogleSearch())],
                 ),
             )
-            self.track_usage(response, "web_search_fill", state)
             text = response.text or ""
             text = _extract_json(text)
 

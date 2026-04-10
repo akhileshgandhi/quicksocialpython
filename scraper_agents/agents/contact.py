@@ -48,6 +48,19 @@ class ContactSocialAgent(BaseAgent):
             f"phones={bool(contact_info.get('phones'))}"
         )
 
+        # ── Step 1.5: Merge Playwright rendered DOM contacts ──────────
+        # SPA sites (Next.js, React) have footer contacts invisible in
+        # static HTML.  CrawlerAgent stores Playwright-extracted data on
+        # state._pw_social / state._pw_contact if the rendered DOM had more.
+        pw_social = getattr(state, "_pw_social", None)
+        pw_contact = getattr(state, "_pw_contact", None)
+        if pw_social:
+            social_links = _merge_social(social_links, pw_social)
+        if pw_contact:
+            contact_info = _merge_contact(contact_info, pw_contact)
+            if pw_social or pw_contact:
+                self.log("Merged Playwright DOM contacts")
+
         # ── Step 2: Check contact page (if available) ─────────────────
         contact_pages = state.site_map.get("contact", [])
         if contact_pages:

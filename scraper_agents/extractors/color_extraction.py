@@ -10,13 +10,14 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 import requests
 
 from scraper_agents.config import (
     COLOR_CONFIG,
+    COLOR_PIPELINE_VERSION,
     THEME_CDN_DOMAINS,
     THIRD_PARTY_WIDGET_RE,
     TIMEOUTS,
@@ -87,42 +88,458 @@ def filter_boring_colors(hex_colors: List[str]) -> List[str]:
     return [c for c in hex_colors if not _is_near_white(c) and not _is_mid_gray(c)]
 
 
-# Browser default / CSS framework colors that leak through (not real brand colors)
-_BROWSER_DEFAULT_COLORS = {
-    "#0000EE",  # unvisited link blue
-    "#551A8B",  # visited link purple
-    "#0000FF",  # blue (default link)
-    "#FF0000",  # pure red (error/required)
-    "#008000",  # green (success)
-    "#CC1122",  # common Shopify sale-badge red
-}
+# ---------------------------------------------------------------------------
+# HSL colour-space utilities
+# ---------------------------------------------------------------------------
+
+def _rgb_to_hsl(r: int, g: int, b: int) -> tuple[float, float, float]:
+    """Convert RGB (0-255) to HSL (H: 0-360, S: 0-100, L: 0-100)."""
+    r_, g_, b_ = r / 255.0, g / 255.0, b / 255.0
+    mx, mn = max(r_, g_, b_), min(r_, g_, b_)
+    l = (mx + mn) / 2.0
+
+    if mx == mn:
+        h = s = 0.0
+    else:
+        d = mx - mn
+        s = d / (2.0 - mx - mn) if l > 0.5 else d / (mx + mn)
+        if mx == r_:
+            h = ((g_ - b_) / d + (6 if g_ < b_ else 0)) * 60
+        elif mx == g_:
+            h = ((b_ - r_) / d + 2) * 60
+        else:
+            h = ((r_ - g_) / d + 4) * 60
+
+    return round(h, 1), round(s * 100, 1), round(l * 100, 1)
 
 
-def _is_very_near_white(hex_color: str) -> bool:
-    """Stricter near-white check: only RGB all > 240 (keeps beiges, pastels)."""
-    try:
-        r, g, b = _parse_rgb(hex_color)
-        return r > 240 and g > 240 and b > 240
-    except Exception:
-        return False
+def _hex_to_hsl(hex_color: str) -> tuple[float, float, float]:
+    """Convert hex colour to HSL."""
+    r, g, b = _parse_rgb(hex_color)
+    return _rgb_to_hsl(r, g, b)
 
 
-def filter_boring_colors_relaxed(hex_colors: List[str]) -> List[str]:
-    """Relaxed filter for monochrome brands — keeps dark colors and muted tones.
+def _hsl_to_hex(h: float, s: float, l: float) -> str:
+    """Convert HSL (H: 0-360, S: 0-100, L: 0-100) to hex string."""
+    s_, l_ = s / 100.0, l / 100.0
 
-    Only removes: pure/very-near white (#F0F0F0+), and known browser defaults.
-    Keeps: blacks, dark grays, earth tones, pastels — all legitimate brand colors
-    for minimal/luxury/fashion brands (Sotbella, Apple, Chanel, etc.).
+    if s_ == 0:
+        v = int(round(l_ * 255))
+        return f"#{v:02X}{v:02X}{v:02X}"
+
+    def hue2rgb(p: float, q: float, t: float) -> float:
+        if t < 0: t += 1
+        if t > 1: t -= 1
+        if t < 1/6: return p + (q - p) * 6 * t
+        if t < 1/2: return q
+        if t < 2/3: return p + (q - p) * (2/3 - t) * 6
+        return p
+
+    q = l_ * (1 + s_) if l_ < 0.5 else l_ + s_ - l_ * s_
+    p = 2 * l_ - q
+    h_ = h / 360.0
+    r = int(round(hue2rgb(p, q, h_ + 1/3) * 255))
+    g = int(round(hue2rgb(p, q, h_) * 255))
+    b = int(round(hue2rgb(p, q, h_ - 1/3) * 255))
+    return f"#{r:02X}{g:02X}{b:02X}"
+
+
+def _hue_distance(h1: float, h2: float) -> float:
+    """Angular distance between two hues (0-180)."""
+    d = abs(h1 - h2)
+    return min(d, 360 - d)
+
+
+def _contrast_ratio(hex1: str, hex2: str) -> float:
+    """WCAG relative luminance contrast ratio between two colours."""
+    def _rel_lum(hex_c: str) -> float:
+        r, g, b = _parse_rgb(hex_c)
+        rs, gs, bs = r / 255.0, g / 255.0, b / 255.0
+        rs = rs / 12.92 if rs <= 0.03928 else ((rs + 0.055) / 1.055) ** 2.4
+        gs = gs / 12.92 if gs <= 0.03928 else ((gs + 0.055) / 1.055) ** 2.4
+        bs = bs / 12.92 if bs <= 0.03928 else ((bs + 0.055) / 1.055) ** 2.4
+        return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs
+
+    l1 = _rel_lum(hex1) + 0.05
+    l2 = _rel_lum(hex2) + 0.05
+    return max(l1, l2) / min(l1, l2)
+
+
+# ---------------------------------------------------------------------------
+# Brand palette resolution
+# ---------------------------------------------------------------------------
+
+def _visual_impact(color: Dict[str, Any]) -> float:
+    """Score colour by saturation weighted toward usable brand lightness."""
+    s, l = color["s"], color["l"]
+    if 30 <= l <= 65:
+        l_factor = 1.0
+    elif l > 65:
+        l_factor = max(0.3, 1.0 - (l - 65) / 50)
+    else:
+        l_factor = max(0.5, l / 30)
+    return s * l_factor
+
+
+def _complementary_color(hex_color: str) -> str:
+    """Return a complementary hue variant that maximizes contrast."""
+    h, s, _ = _hex_to_hsl(hex_color)
+    comp_h = (h + 180) % 360
+    comp_s = min(max(s, 55), 85)
+    candidates = [_hsl_to_hex(comp_h, comp_s, lightness) for lightness in (35, 45, 55, 65)]
+    return max(candidates, key=lambda c: _contrast_ratio(hex_color, c))
+
+
+def _darker_shade(hex_color: str, amount: float = 25) -> str:
+    """Return a darker shade of the given colour."""
+    h, s, l = _hex_to_hsl(hex_color)
+    return _hsl_to_hex(h, s, max(l - amount, 10))
+
+
+def _build_hue_clusters(colors: List[Dict[str, Any]], threshold: float = 20) -> List[Dict[str, Any]]:
+    """Group colours into deterministic hue clusters using a fixed threshold."""
+    clusters: List[Dict[str, Any]] = []
+    seen_signatures: Set[tuple[str, ...]] = set()
+
+    for anchor in colors:
+        members = [
+            color for color in colors
+            if _hue_distance(anchor["h"], color["h"]) <= threshold
+        ]
+        signature = tuple(sorted(color["hex"] for color in members))
+        if not signature or signature in seen_signatures:
+            continue
+        seen_signatures.add(signature)
+        clusters.append({
+            "members": members,
+            "count": len(members),
+            "impact": sum(_visual_impact(color) for color in members),
+            "first_order": min(color["order"] for color in members),
+        })
+
+    return clusters
+
+
+def _prefers_website_primary(site_type: Optional[str]) -> bool:
+    """Sites where declared/rendered UI colors often beat logo K-means (wrong/cropped logos)."""
+    st = (site_type or "").strip().lower()
+    return st in (
+        "saas",
+        "services",
+        "platform",
+        "portfolio",
+        "ecommerce",
+        "conglomerate",
+    )
+
+
+def _pick_primary_from_logo_clusters(
+    logo_candidates: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Pick primary colour from logo K-means using hue clusters."""
+    if not logo_candidates:
+        return None
+    clusters = _build_hue_clusters(logo_candidates, threshold=20)
+    if not clusters:
+        return None
+    dominant_cluster = max(
+        clusters,
+        key=lambda cluster: (
+            cluster["count"],
+            cluster["impact"],
+            -cluster["first_order"],
+        ),
+    )
+    return max(
+        dominant_cluster["members"],
+        key=lambda color: (
+            _visual_impact(color),
+            -color["order"],
+        ),
+    )
+
+
+def _validate_palette(primary: str, secondary: str, accent: str) -> tuple[str, str, str]:
+    """Repair palette relationships for hue distance and contrast."""
+    primary_h, _, _ = _hex_to_hsl(primary)
+
+    if accent:
+        accent_h, _, _ = _hex_to_hsl(accent)
+        if _hue_distance(primary_h, accent_h) < 60:
+            accent = _complementary_color(primary)
+        if _contrast_ratio(primary, accent) < 3:
+            accent = _complementary_color(primary)
+
+    if secondary and _contrast_ratio(primary, secondary) < 2:
+        secondary = _darker_shade(primary)
+
+    return primary, secondary, accent
+
+
+def resolve_brand_palette(
+    logo_colors: List[str],
+    website_colors: List[str],
+    cta_colors: Optional[List[str]] = None,
+    site_type: Optional[str] = None,
+) -> Tuple[Dict[str, str], Dict[str, Any]]:
+    """Build a deterministic 5-colour brand palette from extracted colours.
+
+    Returns a tuple ``(palette, audit)`` where *palette* maps
+    primary/secondary/accent/background/text, and *audit* records sources and
+    rules for persistence and debugging.
+
+    Selection rules (deterministic, based on HSL properties):
+
+    * **Primary** — For ``brand`` / ``restaurant`` (not in prefer-web list):
+      logo-led when chromatic. For ``saas`` / ``services`` / ``ecommerce`` /
+      etc. (see :func:`_prefers_website_primary`), website/theme colours win
+      when logo chroma is weak; strong logo still competes with hue cross-check.
+    * **Secondary** — second colour with ≥40° hue difference from primary.
+    * **Accent** — high contrast vs primary; fallback complementary.
+    * **Background/Text** — derived from primary lightness.
     """
-    result = []
-    for c in hex_colors:
-        norm = c.strip().upper()
-        if _is_very_near_white(norm):
-            continue
-        if norm in _BROWSER_DEFAULT_COLORS:
-            continue
-        result.append(c)
-    return result
+    if cta_colors is None:
+        cta_colors = []
+
+    rules_fired: List[str] = []
+    primary_source = "unknown"
+    hue_crosscheck_used = False
+    weak_logo: Optional[bool] = None
+    max_logo_sat: Optional[float] = None
+
+    # ── Classify every colour by HSL properties ──────────────────────
+    all_pool: List[Dict[str, Any]] = []
+    order = 0
+    for source, colors in (("logo", logo_colors), ("website", website_colors), ("cta", cta_colors)):
+        for hex_c in colors:
+            try:
+                h, s, l = _hex_to_hsl(hex_c)
+                all_pool.append({
+                    "hex": _norm_hex(hex_c),
+                    "h": h,
+                    "s": s,
+                    "l": l,
+                    "src": source,
+                    "order": order,
+                })
+                order += 1
+            except Exception:
+                pass
+
+    # Deduplicate by hex
+    seen: Set[str] = set()
+    pool: List[Dict[str, Any]] = []
+    for c in all_pool:
+        if c["hex"] not in seen:
+            seen.add(c["hex"])
+            pool.append(c)
+
+    if pool and all(c["s"] < 15 for c in pool):
+        audit = {
+            "pipeline_version": COLOR_PIPELINE_VERSION,
+            "site_type": site_type,
+            "prefer_website_primary": _prefers_website_primary(site_type),
+            "primary_source": "desaturated_pool",
+            "rules_fired": ["all_saturation_below_15_fallback_neutral"],
+            "weak_logo": None,
+            "max_logo_saturation": max((c["s"] for c in pool if c["src"] == "logo"), default=None),
+            "hue_crosscheck": False,
+        }
+        return {
+            "primary": "#000000",
+            "secondary": "#666666",
+            "accent": "#000000",
+            "background": "#FFFFFF",
+            "text": "#1A1A2E",
+        }, audit
+
+    chromatic_pool = [c for c in pool if c["s"] >= 15]
+
+    # ── Primary: logo vs website depends on site_type ────────────────
+    logo_candidates = [c for c in chromatic_pool if c["src"] == "logo"]
+    website_candidates = [c for c in chromatic_pool if c["src"] in ("website", "cta")]
+
+    sat_floor = float(COLOR_CONFIG.get("palette_logo_saturation_floor", 38.0))
+    hue_ck = float(COLOR_CONFIG.get("palette_hue_crosscheck_deg", 45.0))
+
+    logo_primary_item = _pick_primary_from_logo_clusters(logo_candidates)
+    website_primary_item: Optional[Dict[str, Any]] = None
+    if website_candidates:
+        website_primary_item = max(
+            website_candidates,
+            key=lambda color: (
+                _visual_impact(color),
+                -color["order"],
+            ),
+        )
+
+    primary_item: Optional[Dict[str, Any]] = None
+    prefer_web = _prefers_website_primary(site_type)
+
+    if prefer_web and website_primary_item:
+        max_logo_sat = max((c["s"] for c in logo_candidates), default=0.0)
+        weak_logo = (not logo_candidates) or (max_logo_sat < sat_floor)
+
+        if weak_logo:
+            primary_item = website_primary_item
+            primary_source = "website"
+            rules_fired.append("prefer_website_weak_logo")
+            logger.info(
+                "[COLOR] Primary from website (SaaS-like, weak/absent logo chroma): "
+                f"site_type={site_type!r}"
+            )
+        elif logo_primary_item:
+            # Strong logo chroma — still compare hue vs best website for disagreement
+            if (
+                website_primary_item
+                and _hue_distance(logo_primary_item["h"], website_primary_item["h"]) >= hue_ck
+                and _visual_impact(website_primary_item) >= _visual_impact(logo_primary_item) - 5
+            ):
+                primary_item = website_primary_item
+                primary_source = "website"
+                hue_crosscheck_used = True
+                rules_fired.append("prefer_website_hue_crosscheck_vs_logo")
+                logger.info(
+                    "[COLOR] Primary from website (SaaS-like, hue cross-check vs logo)"
+                )
+            else:
+                primary_item = logo_primary_item
+                primary_source = "logo"
+                rules_fired.append("logo_primary_strong_chroma")
+        else:
+            primary_item = website_primary_item
+            primary_source = "website"
+            rules_fired.append("prefer_website_no_logo_cluster")
+    elif logo_primary_item:
+        primary_item = logo_primary_item
+        primary_source = "logo"
+        rules_fired.append("logo_primary_non_prefer_web")
+    elif website_primary_item:
+        primary_item = website_primary_item
+        primary_source = "website"
+        rules_fired.append("website_primary_no_logo")
+
+    if not primary_item and chromatic_pool:
+        primary_item = max(
+            chromatic_pool,
+            key=lambda color: (
+                _visual_impact(color),
+                -color["order"],
+            ),
+        )
+        primary_source = "chromatic_pool_fallback"
+        rules_fired.append("chromatic_pool_max_impact")
+
+    primary = primary_item["hex"] if primary_item else None
+
+    # ── Secondary: second colour with ≥60° hue difference ───────────
+    secondary = None
+    secondary_source = "derived"
+    if primary and primary_item:
+        secondary_candidates = sorted(
+            [c for c in chromatic_pool if c["hex"] != primary],
+            key=lambda color: (
+                -int(color["src"] == "logo"),
+                -_visual_impact(color),
+                color["order"],
+                color["hex"],
+            ),
+        )
+        for color in secondary_candidates:
+            if _hue_distance(primary_item["h"], color["h"]) >= 40:
+                secondary = color["hex"]
+                secondary_source = color["src"]
+                break
+        if not secondary:
+            secondary = _darker_shade(primary)
+            rules_fired.append("secondary_darker_shade_fallback")
+
+    # ── Accent: highest contrast to primary ──────────────────────────
+    accent = None
+    if primary and primary_item:
+        accent_candidates = sorted(
+            [c for c in chromatic_pool if c["hex"] not in (primary, secondary)],
+            key=lambda color: (
+                -_contrast_ratio(primary, color["hex"]),
+                -_visual_impact(color),
+                color["order"],
+                color["hex"],
+            ),
+        )
+        for color in accent_candidates:
+            if (
+                _contrast_ratio(primary, color["hex"]) >= 3
+                and _hue_distance(primary_item["h"], color["h"]) >= 60
+            ):
+                accent = color["hex"]
+                break
+        if not accent:
+            accent = _complementary_color(primary)
+            rules_fired.append("accent_complementary_fallback")
+
+    # ── Background + Text: always derived ────────────────────────────
+    if primary:
+        _, _, primary_l = _hex_to_hsl(primary)
+        if primary_l < 50:
+            # Dark primary → light background
+            background = "#FFFFFF"
+            text = "#1A1A2E"
+        else:
+            # Light primary → can go either way; default to white bg
+            background = "#FFFFFF"
+            text = "#1A1A2E"
+    else:
+        background = "#FFFFFF"
+        text = "#1A1A2E"
+
+    # ── Handle no-primary edge case ──────────────────────────────────
+    if not primary:
+        # Use first non-white color available
+        for c in pool:
+            if c["l"] < 90:
+                primary = c["hex"]
+                primary_source = "pool_low_lightness"
+                rules_fired.append("primary_from_pool_edge")
+                break
+        if not primary:
+            primary = "#000000"
+            primary_source = "hard_black"
+            rules_fired.append("primary_hard_black")
+        if not secondary:
+            secondary = _darker_shade(primary)
+
+    if not accent:
+        accent = _complementary_color(primary)
+        rules_fired.append("accent_complementary_fallback")
+
+    primary, secondary, accent = _validate_palette(primary, secondary, accent)
+
+    palette = {
+        "primary": primary,
+        "secondary": secondary,
+        "accent": accent,
+        "background": background,
+        "text": text,
+    }
+
+    logger.info(
+        f"[COLOR] Brand palette: primary={primary} secondary={secondary} "
+        f"accent={accent} bg={background} text={text}"
+    )
+
+    audit: Dict[str, Any] = {
+        "pipeline_version": COLOR_PIPELINE_VERSION,
+        "site_type": site_type,
+        "prefer_website_primary": prefer_web,
+        "weak_logo": weak_logo,
+        "max_logo_saturation": max_logo_sat,
+        "primary_source": primary_source,
+        "secondary_source": secondary_source,
+        "hue_crosscheck": hue_crosscheck_used,
+        "rules_fired": rules_fired,
+    }
+
+    return palette, audit
 
 
 # ---------------------------------------------------------------------------
@@ -227,10 +644,6 @@ def extract_colors_from_logo(logo_path: str, count: int = 5) -> List[str]:
         not_white = ~((r > _NEAR_WHITE) & (g > _NEAR_WHITE) & (b > _NEAR_WHITE))
         not_mid_gray = ~((spread < _GRAY_SPREAD) & (r > _GRAY_MIN) & (r < _NEAR_WHITE))
         colorful = visible[not_white & not_mid_gray]
-
-        if len(colorful) < 30:
-            # Retry: keep grays (monochrome logos like Apple, Nike, Chanel)
-            colorful = visible[not_white]
 
         if len(colorful) < 30:
             return []
@@ -451,6 +864,7 @@ def extract_colors_comprehensive(soup, base_url: str) -> Dict[str, Any]:
         "colors": [c for c, _ in sorted_colors],
         "annotated": "\n".join(annotations) if annotations else "No colors found",
         "utility_colors": set(utility_signal_colors.keys()),
+        "brand_signal_colors": sorted(brand_signal_colors, key=lambda x: x.upper()),
     }
 
 

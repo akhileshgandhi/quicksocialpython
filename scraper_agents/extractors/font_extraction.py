@@ -112,11 +112,8 @@ def extract_fonts_comprehensive(soup, base_url: str) -> Dict[str, Any]:
             return
         if re.match(r'^[\d.]+(%|px|em|rem|pt|vw|vh)?$', family):
             return
-        # Reject placeholder/generic custom font names (Custom_Font_Heading, etc.)
-        _lower = family.lower()
-        if "custom_font" in _lower or "custom-font" in _lower:
-            return
         # Reject icon fonts (not real typography)
+        _lower = family.lower()
         if any(kw in _lower for kw in ["icon", "glyph", "symbol", "awesome", "icomoon"]):
             return
         # Normalize language-specific variants: "Open Sans Hebrew" → "Open Sans"

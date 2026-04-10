@@ -30,33 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Rejected Unicode script ranges (CJK, Japanese, Korean, Arabic, Thai)
-# Indian scripts (Devanagari, Tamil, Telugu, Bengali, etc.) are KEPT.
-# ---------------------------------------------------------------------------
-
-_REJECTED_RANGES = [
-    (0x3040, 0x309F),   # Hiragana
-    (0x30A0, 0x30FF),   # Katakana
-    (0x3400, 0x4DBF),   # CJK Extension A
-    (0x4E00, 0x9FFF),   # CJK Unified Ideographs
-    (0xAC00, 0xD7AF),   # Hangul Syllables
-    (0x1100, 0x11FF),   # Hangul Jamo
-    (0x0600, 0x06FF),   # Arabic
-    (0x0E00, 0x0E7F),   # Thai
-]
-
-
-def _has_rejected_script(text: str) -> bool:
-    """Return True if *text* contains CJK, Japanese, Korean, Arabic, or Thai."""
-    for ch in text:
-        cp = ord(ch)
-        for lo, hi in _REJECTED_RANGES:
-            if lo <= cp <= hi:
-                return True
-    return False
-
-
-# ---------------------------------------------------------------------------
 # Internal URL pattern lists (listing vs skip)
 # ---------------------------------------------------------------------------
 
@@ -442,10 +415,6 @@ def scrape_product_detail(url: str, headers: dict) -> Optional[Dict[str, Any]]:
         }
         name_lower = name.lower()
         if any(name_lower.startswith(cta) for cta in _CTA_WORDS):
-            return None
-
-        # Reject non-English/non-Indian script names (CJK, Arabic, Thai, etc.)
-        if _has_rejected_script(name):
             return None
 
         # ── Image: og:image first, then first large img in main ───────

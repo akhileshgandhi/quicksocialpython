@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import Counter
 from typing import Any, Dict, List, Optional
 
 from scraper_agents.agents.base import BaseAgent
@@ -27,8 +28,9 @@ from scraper_agents.extractors.color_extraction import (
     extract_colors_from_logo,
     extract_colors_from_screenshot_kmeans,
     filter_boring_colors,
-    filter_boring_colors_relaxed,
     is_chromatic,
+    _hex_to_hsl,
+    resolve_brand_palette,
 )
 from scraper_agents.extractors.font_extraction import extract_fonts_comprehensive
 
@@ -52,6 +54,7 @@ class VisualIdentityAgent(BaseAgent):
         # ── Step 1: CSS / HTML color extraction ───────────────────────
         css_result = extract_colors_comprehensive(state.homepage_soup, state.base_url)
         css_colors: List[str] = css_result.get("colors", [])
+        brand_signal_css: set = set(css_result.get("brand_signal_colors") or [])
         annotated_parts: List[str] = [css_result.get("annotated", "")]
         utility_colors: set = css_result.get("utility_colors", set())
 
@@ -73,9 +76,9 @@ class VisualIdentityAgent(BaseAgent):
         # ── Step 3: Wait for logo and extract logo K-means colors ─────
         logo_colors: List[str] = []
         try:
-            await asyncio.wait_for(state.logo_ready.wait(), timeout=30.0)
+            await asyncio.wait_for(state.logo_ready.wait(), timeout=20.0)
         except asyncio.TimeoutError:
-            self.log("logo_ready timed out after 30s — proceeding without logo colors")
+            self.log("logo_ready timed out after 20s — proceeding without logo colors")
 
         if state.logo_bytes and state.logo_local_path:
             logo_colors = extract_colors_from_logo(state.logo_local_path, count=5)
@@ -94,9 +97,10 @@ class VisualIdentityAgent(BaseAgent):
         elif logo_colors:
             merged_colors = _merge_color_lists(merged_colors, logo_colors)
 
-        # ── Step 4: Screenshot K-means fallback ───────────────────────
+        # ── Step 4: Screenshot K-means fallback (earlier when few good chroma colors) ─
+        screenshot_colors: List[str] = []
         good_colors = filter_boring_colors(merged_colors)
-        if len(good_colors) < 2 and state.pw_screenshot:
+        if len(good_colors) < 3 and state.pw_screenshot:
             screenshot_colors = extract_colors_from_screenshot_kmeans(state.pw_screenshot)
             if screenshot_colors:
                 self.log(
@@ -105,54 +109,95 @@ class VisualIdentityAgent(BaseAgent):
                 merged_colors = _merge_color_lists(merged_colors, screenshot_colors)
                 good_colors = filter_boring_colors(merged_colors)
 
-        # ── Step 4b: Relaxed filter for monochrome brands ───────────
-        # If strict filter leaves ≤1 color, the brand is likely monochrome
-        # (fashion, luxury, minimal). Use relaxed filter that keeps dark
-        # colors and earth tones — these ARE the brand identity.
-        if len(good_colors) <= 1:
-            relaxed = filter_boring_colors_relaxed(merged_colors)
-            if len(relaxed) > len(good_colors):
-                self.log(f"Monochrome brand — relaxed filter found {len(relaxed)} color(s)")
-                good_colors = relaxed
-
         # ── Step 5: Font extraction ───────────────────────────────────
         font_result = extract_fonts_comprehensive(state.homepage_soup, state.base_url)
         fonts: List[Dict[str, Any]] = font_result.get("fonts", [])
         google_fonts_url: Optional[str] = font_result.get("google_fonts_url")
         font_headline_color: Optional[str] = font_result.get("headline_text_color")
 
-        # Merge Playwright computed fonts (highest priority — actual rendered fonts)
-        if state.pw_computed_fonts:
-            existing_families = {f.get("family", "").lower() for f in fonts}
-            for pf in state.pw_computed_fonts:
-                family = pf.get("family", "")
-                if family.lower() not in existing_families:
-                    fonts.insert(0, pf)  # prepend — computed fonts get priority
-                    existing_families.add(family.lower())
-                else:
-                    # Update usage if CSS-only had "unknown" but computed knows the role
-                    for f in fonts:
-                        if f.get("family", "").lower() == family.lower():
-                            if f.get("usage") == "unknown" and pf.get("usage") != "unknown":
-                                f["usage"] = pf["usage"]
-                            break
-
         self.log(f"Font extraction found {len(fonts)} font(s)")
 
-        # ── Step 6: Resolve brand color palette + headline color ───────
-        brand_colors = _resolve_brand_colors(good_colors, merged_colors, logo_colors)
+        # ── Step 6: Resolve structured brand palette via HSL science ───
+        # Extract CTA/button colours from Playwright (accent candidates)
+        cta_colors = [
+            c.get("hex", "") for c in (state.pw_computed_colors or [])
+            if c.get("source", "").startswith("button")
+        ]
+
+        website_color_counts = Counter(
+            c.strip().upper()
+            for c in (pw_colors + css_colors + screenshot_colors)
+            if c
+        )
+        merged_colors = _filter_noise_colors(
+            merged_colors,
+            website_color_counts=website_color_counts,
+            logo_colors=logo_colors,
+            cta_colors=cta_colors,
+            brand_signal_colors=brand_signal_css,
+        )
+        good_colors = filter_boring_colors(merged_colors)
+
+        palette, color_audit_core = resolve_brand_palette(
+            logo_colors=logo_colors,
+            website_colors=good_colors or merged_colors,
+            cta_colors=cta_colors,
+            site_type=state.site_type,
+        )
+        state.color_audit = {
+            **color_audit_core,
+            "candidates": {
+                "logo_kmeans": list(logo_colors),
+                "playwright_computed": list(pw_colors),
+                "css_html": list(css_colors),
+                "cta_playwright": [c for c in cta_colors if c],
+                "screenshot_kmeans": list(screenshot_colors),
+                "merged_pre_resolve": list(good_colors or merged_colors)[:40],
+            },
+            "brand_signal_css": sorted(brand_signal_css, key=lambda x: x.upper()),
+        }
+
+        # Build primary_color list for backward compatibility:
+        # [primary, secondary, accent, background, text]
+        brand_colors = [
+            palette["primary"],
+            palette["secondary"],
+            palette["accent"],
+            palette["background"],
+            palette["text"],
+        ]
+        # Remove duplicates while preserving order
+        seen_bc: set = set()
+        brand_colors_deduped: List[str] = []
+        for c in brand_colors:
+            if c and c not in seen_bc:
+                seen_bc.add(c)
+                brand_colors_deduped.append(c)
 
         headline_text_color = font_headline_color  # from CSS heading rules
-        if not headline_text_color and brand_colors:
-            headline_text_color = brand_colors[0]
+        if not headline_text_color:
+            headline_text_color = palette["text"]
 
         # Resolve headline + body fonts
         headline_font, body_font = _resolve_fonts(fonts)
 
+        # Merge Playwright computed fonts (higher priority — JS-rendered)
+        if state.pw_computed_fonts:
+            for pf in state.pw_computed_fonts:
+                fam = pf.get("family", "").strip()
+                usage = pf.get("usage", "unknown")
+                if not fam or _is_icon_font(fam):
+                    continue
+                if usage == "heading" and not headline_font:
+                    headline_font = fam
+                elif usage == "body" and not body_font:
+                    body_font = fam
+
         # ── Step 7: Write results to state ────────────────────────────
-        state.primary_color = brand_colors or None  # List[str]
+        state.primary_color = brand_colors_deduped or None
         state.secondary_color = None                # Deprecated
         state.headline_text_color = headline_text_color
+        state.brand_palette = palette               # New structured palette
 
         state.headline_font = headline_font
         state.body_font = body_font
@@ -161,13 +206,13 @@ class VisualIdentityAgent(BaseAgent):
 
         state.colors_found = merged_colors[:15]
         state.colors_utility = utility_colors
-        # Build combined annotated string
         state.colors_annotated = "\n".join(
             part for part in annotated_parts if part and part != "No colors found"
         ) or "No colors found"
 
         self.log(
-            f"Resolved brand_colors={brand_colors}, "
+            f"Resolved palette: primary={palette['primary']} "
+            f"secondary={palette['secondary']} accent={palette['accent']}, "
             f"headline_font={headline_font}, body_font={body_font}"
         )
 
@@ -196,6 +241,45 @@ def _merge_color_lists(high_priority: List[str], low_priority: List[str]) -> Lis
             seen.add(norm)
             merged.append(norm)
     return merged
+
+
+def _is_noise_color(hex_color: str) -> bool:
+    """Return True for desaturated or washed-out website colours."""
+    _, s, l = _hex_to_hsl(hex_color)
+    return (
+        s < 10 or
+        l > 95 or
+        (20 < l < 80 and s < 15)
+    )
+
+
+def _filter_noise_colors(
+    merged_colors: List[str],
+    website_color_counts: Counter[str],
+    logo_colors: List[str],
+    cta_colors: List[str],
+    brand_signal_colors: Optional[set] = None,
+) -> List[str]:
+    """Filter website-only noise while preserving logo, CTA, and CSS brand-token colours."""
+    logo_set = {c.strip().upper() for c in logo_colors if c}
+    cta_set = {c.strip().upper() for c in cta_colors if c}
+    brand_set = {c.strip().upper() for c in (brand_signal_colors or set()) if c}
+
+    filtered: List[str] = []
+    for color in merged_colors:
+        norm = color.strip().upper()
+        if not norm:
+            continue
+        if norm in logo_set or norm in cta_set or norm in brand_set:
+            filtered.append(norm)
+            continue
+        if website_color_counts.get(norm, 0) <= 1:
+            continue
+        if _is_noise_color(norm):
+            continue
+        filtered.append(norm)
+
+    return filtered
 
 
 def _resolve_brand_colors(
@@ -237,40 +321,11 @@ def _resolve_brand_colors(
 _ICON_FONT_KW = {"icon", "glyph", "symbol", "awesome", "icomoon", "material",
                   "fontello", "fontisto", "ionicon", "feather", "linearicon"}
 
-# Known real fonts — if a font name is in this set, it's never a brand-custom font
-_KNOWN_REAL_FONTS = {
-    "open sans", "roboto", "lato", "montserrat", "poppins", "inter", "raleway",
-    "nunito", "playfair display", "merriweather", "oswald", "source sans pro",
-    "pt sans", "noto sans", "ubuntu", "mukta", "rubik", "work sans", "dosis",
-    "quicksand", "dm sans", "barlow", "josefin sans", "libre baskerville",
-    "jost", "geist", "outfit", "space grotesk", "plus jakarta sans", "figtree",
-    "manrope", "urbanist", "lexend", "be vietnam pro", "sora", "archivo",
-    "cabin", "karla", "mulish", "exo", "fira sans", "ibm plex sans",
-    "crimson text", "bitter", "cormorant", "spectral", "alegreya",
-    "source serif pro", "eb garamond", "libre franklin", "hind", "titillium web",
-    "mier", "mierb", "mierb-regular", "mierb-demibold",
-}
-
 
 def _is_icon_font(name: str) -> bool:
     """Return True if *name* looks like an icon/symbol font."""
     low = name.lower()
     return any(kw in low for kw in _ICON_FONT_KW)
-
-
-def _is_brand_custom_font(name: str) -> bool:
-    """Return True if *name* looks like a brand-specific display font (e.g., 'Lays', 'Nike').
-
-    Brand-custom fonts are single-word names that are NOT known real fonts.
-    They shouldn't be used as body_font since they're display/logo fonts only.
-    """
-    low = name.strip().lower()
-    if low in _KNOWN_REAL_FONTS:
-        return False
-    # Single short word (≤12 chars), no spaces, not a known font → likely brand font
-    if " " not in low and len(low) <= 12 and low.isalpha():
-        return True
-    return False
 
 
 def _resolve_fonts(
@@ -288,20 +343,15 @@ def _resolve_fonts(
     headline_font: Optional[str] = None
     body_font: Optional[str] = None
 
-    def _skip(family: str) -> bool:
-        return not family or _is_icon_font(family)
-
-    def _skip_for_body(family: str) -> bool:
-        """Brand-custom fonts (Lays, Nike) are OK for headline but NOT body."""
-        return _skip(family) or _is_brand_custom_font(family)
-
     # Pass 1: look for explicit usage tags
     for f in fonts:
         usage = (f.get("usage") or "").lower()
         family = f.get("family", "")
-        if usage == "heading" and not headline_font and not _skip(family):
+        if not family or _is_icon_font(family):
+            continue
+        if usage == "heading" and not headline_font:
             headline_font = family
-        elif usage == "body" and not body_font and not _skip_for_body(family):
+        elif usage == "body" and not body_font:
             body_font = family
 
     # Pass 2: fallback to Google Fonts entries
@@ -309,27 +359,25 @@ def _resolve_fonts(
         google_fonts = [
             f["family"] for f in fonts
             if f.get("source") == "google_fonts" and f.get("family")
-            and not _skip(f["family"])
+            and not _is_icon_font(f["family"])
         ]
         if not headline_font and google_fonts:
             headline_font = google_fonts[0]
-        if not body_font:
-            for gf in google_fonts:
-                if gf != headline_font and not _skip_for_body(gf):
-                    body_font = gf
-                    break
+        if not body_font and len(google_fonts) >= 2:
+            body_font = google_fonts[1]
 
     # Pass 3: fallback to first available fonts
     if not headline_font or not body_font:
         all_families = [
             f["family"] for f in fonts
-            if f.get("family") and not _skip(f["family"])
+            if f.get("family") and not _is_icon_font(f["family"])
         ]
         if not headline_font and all_families:
             headline_font = all_families[0]
-        if not body_font:
+        if not body_font and len(all_families) >= 2:
+            # Pick one that differs from headline
             for fam in all_families:
-                if fam != headline_font and not _skip_for_body(fam):
+                if fam != headline_font:
                     body_font = fam
                     break
 

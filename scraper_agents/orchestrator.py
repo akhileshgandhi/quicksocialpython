@@ -15,7 +15,8 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Form, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
@@ -37,13 +38,15 @@ from models import (
 )
 from utils import parse_product_features, parse_service_benefits, parse_service_skills
 
+from scraper_agents.state import ScrapeState
+
 logger = logging.getLogger(__name__)
 
 # ── In-memory store for async scrape jobs ─────────────────────────────────
 _scrape_jobs: Dict[str, Dict[str, Any]] = {}
-
-# ── In-memory queues for WebSocket progress streaming (not file-persisted) ─
+# Live progress queues for WebSocket streaming (async scrapes only)
 _scrape_queues: Dict[str, asyncio.Queue] = {}
+_QUEUE_CLEANUP_DELAY_S = 120.0
 
 # File-based job store for multi-worker production deployments.
 # In-memory dict is still used as a fast cache, but the file is the
@@ -76,6 +79,12 @@ def _load_job(scrape_id: str) -> Optional[Dict[str, Any]]:
             except Exception:
                 pass
     return None
+
+
+async def _schedule_scrape_queue_cleanup(scrape_id: str, delay_s: float = _QUEUE_CLEANUP_DELAY_S) -> None:
+    """Remove queue after delay so late WebSocket clients can still resolve scrape_id."""
+    await asyncio.sleep(delay_s)
+    _scrape_queues.pop(scrape_id, None)
 
 
 def _cleanup_old_jobs() -> None:
@@ -135,19 +144,32 @@ def create_agentic_scraper_router(gemini_client, gemini_model: str, storage_dir:
         download_logo: bool = Form(True),
         deep_scrape: bool = Form(True),
     ):
-        """Fire-and-forget scrape — returns immediately with a scrape_id.
+        """Fire-and-forget scrape — returns immediately with scrape_id and message.
 
-        Poll ``GET /smart-scrape-v2/status/{scrape_id}`` for results,
-        or connect to ``WS /ws/smart-scrape/{scrape_id}`` for real-time progress.
+        First response body::
+
+            {"scrape_id": "...", "status": "processing",
+             "message": "Scraping started for '<url>'. Connect to /ws/smart-scrape/<id> for real-time progress."}
+
+        Poll ``GET /smart-scrape-v2/status/{scrape_id}`` for results, or connect to
+        ``/ws/smart-scrape/{scrape_id}`` for real-time progress events.
         """
         _cleanup_old_jobs()
+        website_url = (website_url or "").strip()
         scrape_id = uuid.uuid4().hex[:8]
-        queue: asyncio.Queue = asyncio.Queue()
-        _scrape_queues[scrape_id] = queue
+        progress_q: asyncio.Queue = asyncio.Queue()
+        _scrape_queues[scrape_id] = progress_q
+
         _save_job(scrape_id, {
             "status": "processing",
             "website_url": website_url,
             "started_at": time.time(),
+        })
+
+        await progress_q.put({
+            "step": "started",
+            "message": f"Scanning website {website_url}...",
+            "scrape_id": scrape_id,
         })
 
         async def _run_and_store():
@@ -155,23 +177,38 @@ def create_agentic_scraper_router(gemini_client, gemini_model: str, storage_dir:
                 result = await _run_agentic_scrape(
                     website_url, company_name_hint, download_logo, deep_scrape,
                     gemini_client, gemini_model, storage_dir,
-                    queue=queue,
+                    progress_queue=progress_q,
+                    preset_scrape_id=scrape_id,
                 )
-                _result_dict = result.model_dump()
+                try:
+                    result_payload = result.model_dump(mode="json")
+                except TypeError:
+                    result_payload = result.model_dump()
                 _save_job(scrape_id, {
                     "status": "done",
-                    "result": _result_dict,
+                    "result": result_payload,
                     "completed_at": time.time(),
                 })
-                await queue.put({"step": "done", "message": "Completed", "result": _result_dict})
+                await progress_q.put({
+                    "step": "done",
+                    "message": "Completed",
+                    "result": result_payload,
+                    "scrape_id": scrape_id,
+                })
             except HTTPException as e:
-                logger.error(f"[ASYNC SCRAPE] {scrape_id} failed: {e.detail}")
+                err = e.detail if isinstance(e.detail, str) else str(e.detail)
+                logger.error(f"[ASYNC SCRAPE] {scrape_id} failed: {e}")
                 _save_job(scrape_id, {
                     "status": "error",
-                    "error": e.detail,
+                    "error": err,
                     "completed_at": time.time(),
                 })
-                await queue.put({"step": "error", "message": "Brand scraping failed. Please try again.", "error": e.detail})
+                await progress_q.put({
+                    "step": "error",
+                    "message": "Scrape failed",
+                    "error": err,
+                    "scrape_id": scrape_id,
+                })
             except Exception as e:
                 logger.error(f"[ASYNC SCRAPE] {scrape_id} failed: {e}")
                 _save_job(scrape_id, {
@@ -179,20 +216,66 @@ def create_agentic_scraper_router(gemini_client, gemini_model: str, storage_dir:
                     "error": str(e),
                     "completed_at": time.time(),
                 })
-                await queue.put({"step": "error", "message": "Brand scraping failed. Please try again.", "error": str(e)})
+                await progress_q.put({
+                    "step": "error",
+                    "message": "Scrape failed",
+                    "error": str(e),
+                    "scrape_id": scrape_id,
+                })
             finally:
-                # Clean up queue after a delay to allow late WebSocket connects to drain it
-                async def _drop_queue():
-                    await asyncio.sleep(300)
-                    _scrape_queues.pop(scrape_id, None)
-                asyncio.create_task(_drop_queue())
+                asyncio.create_task(_schedule_scrape_queue_cleanup(scrape_id))
 
         asyncio.create_task(_run_and_store())
+        message = (
+            f"Scraping started for '{website_url}'. "
+            f"Connect to /ws/smart-scrape/{scrape_id} for real-time progress."
+        )
         return {
             "scrape_id": scrape_id,
             "status": "processing",
-            "message": f"Scraping started for '{website_url}'. Connect to /ws/smart-scrape/{scrape_id} for real-time progress.",
+            "message": message,
         }
+
+    @router.websocket("/ws/smart-scrape/{scrape_id}")
+    async def ws_smart_scrape(websocket: WebSocket, scrape_id: str):
+        """Stream JSON progress events for an async scrape (same ``scrape_id`` from POST)."""
+        await websocket.accept()
+        deadline = time.time() + 60.0
+        while scrape_id not in _scrape_queues and time.time() < deadline:
+            await asyncio.sleep(0.05)
+        q = _scrape_queues.get(scrape_id)
+        if q is None:
+            try:
+                await websocket.send_json({
+                    "step": "error",
+                    "message": "Unknown or expired scrape job",
+                    "error": "unknown or expired scrape_id (connect within 60s of starting async scrape)",
+                    "scrape_id": scrape_id,
+                })
+            except Exception:
+                pass
+            try:
+                await websocket.close(code=4404)
+            except Exception:
+                # Client might already have closed; avoid send-after-close runtime errors.
+                pass
+            return
+        try:
+            while True:
+                try:
+                    message = await asyncio.wait_for(q.get(), timeout=3600.0)
+                except asyncio.TimeoutError:
+                    break
+                await websocket.send_json(message)
+                if isinstance(message, dict) and message.get("step") in ("done", "error"):
+                    break
+        except WebSocketDisconnect:
+            pass
+        finally:
+            try:
+                await websocket.close()
+            except Exception:
+                pass
 
     @router.get("/smart-scrape-v2/status/{scrape_id}")
     async def smart_scrape_v2_status(scrape_id: str):
@@ -201,52 +284,6 @@ def create_agentic_scraper_router(gemini_client, gemini_model: str, storage_dir:
         if not job:
             raise HTTPException(status_code=404, detail="Scrape job not found")
         return job
-
-    # ═══════════════════════════════════════════════════════════════════════
-    # WEBSOCKET — real-time scrape progress stream
-    # ═══════════════════════════════════════════════════════════════════════
-    @router.websocket("/ws/smart-scrape/{scrape_id}")
-    async def ws_smart_scrape(websocket: WebSocket, scrape_id: str):
-        """
-        Stream brand scraping progress in real time.
-
-        Start a job with POST /smart-scrape-v2/async, then connect here.
-
-        Messages pushed by the server:
-          {"step": "started",    "message": "Scanning website {url}..."}
-          {"step": "crawling",   "message": "Mapping site structure..."}
-          {"step": "analysing",  "message": "Analysing brand identity and content..."}
-          {"step": "searching",  "message": "Filling data gaps with web search..."}
-          {"step": "assembling", "message": "Assembling brand profile..."}
-          {"step": "done",       "message": "Completed", "result": { full SmartScrapeResponse }}
-          {"step": "error",      "message": "...", "error": "...details..."}
-        """
-        await websocket.accept()
-
-        # Wait briefly for the job to be registered (race between HTTP response and WS connect)
-        for _ in range(20):
-            if scrape_id in _scrape_queues:
-                break
-            await asyncio.sleep(0.15)
-        else:
-            await websocket.send_json({"step": "error", "error": f"Invalid or expired scrape_id: {scrape_id}"})
-            await websocket.close(code=1008)
-            return
-
-        q: asyncio.Queue = _scrape_queues[scrape_id]
-        try:
-            while True:
-                message = await q.get()
-                await websocket.send_json(message)
-                if message.get("step") in ("done", "error"):
-                    break
-        except WebSocketDisconnect:
-            logger.info(f"[WS] Client disconnected from scrape job {scrape_id}")
-        finally:
-            try:
-                await websocket.close(code=1000)
-            except Exception:
-                pass
 
     return router
 
@@ -285,11 +322,17 @@ async def _run_agentic_scrape(
     gemini_client,
     gemini_model: str,
     storage_dir: Path,
-    queue: Optional[asyncio.Queue] = None,
+    progress_queue: Optional[asyncio.Queue] = None,
+    preset_scrape_id: Optional[str] = None,
 ) -> SmartScrapeResponse:
-    """Main orchestration — Phase 1 → 2 → 3 → 4."""
+    """Main orchestration — Phase 1 → 2 → 3 → 4.
 
-    from scraper_agents.state import ScrapeState
+    When *progress_queue* is set (async + WebSocket), each event is JSON with
+    ``step``, ``message``, ``scrape_id``; the final ``done`` event also includes
+    ``result`` (full :class:`~models.SmartScrapeResponse` payload, JSON-safe).
+    *preset_scrape_id* keeps ``scrape_id`` aligned with ``POST /smart-scrape-v2/async``.
+    """
+
     from scraper_agents.agents.crawler import CrawlerAgent
     from scraper_agents.agents.logo import LogoAgent
     from scraper_agents.agents.visual import VisualIdentityAgent
@@ -300,11 +343,20 @@ async def _run_agentic_scrape(
     from scraper_agents.agents.web_search import WebSearchAgent
 
     overall_start = time.time()
-    scrape_id = uuid.uuid4().hex[:8]
+    scrape_id = preset_scrape_id or uuid.uuid4().hex[:8]
 
-    async def _push(msg: dict):
-        if queue is not None:
-            await queue.put(msg)
+    async def _progress(step: str, message: str, **extra: Any) -> None:
+        if progress_queue:
+            try:
+                payload: Dict[str, Any] = {
+                    "step": step,
+                    "message": message,
+                    "scrape_id": scrape_id,
+                    **extra,
+                }
+                await progress_queue.put(payload)
+            except Exception:
+                pass
 
     # Initialize state
     state = ScrapeState(
@@ -321,25 +373,22 @@ async def _run_agentic_scrape(
     logger.info(f"[AGENTIC SCRAPE] {website_url} (id={scrape_id})")
     logger.info(f"{'='*60}")
 
-    await _push({"step": "started", "message": f"Scanning website {website_url}..."})
-
     # ── Phase 1: Crawler (blocking) ──────────────────────────────────
+    await _progress("crawling", "Mapping site structure...")
     logger.info("\n[PHASE 1] CrawlerAgent — mapping site structure...")
-    await _push({"step": "crawling", "message": "Mapping site structure..."})
     crawler = CrawlerAgent(gemini_client, gemini_model, storage_dir)
     await crawler.execute(state)
 
     if state.scrape_status == "failed":
-        detail = state.fail_reason or "Could not fetch website content"
-        raise HTTPException(status_code=502, detail=detail)
+        raise HTTPException(status_code=502, detail="Could not fetch website content")
 
     phase1_time = time.time() - overall_start
     logger.info(f"[PHASE 1] complete in {phase1_time:.1f}s — "
                 f"site_type={state.site_type}, pages_cached={len(state.page_cache)}")
 
     # ── Phase 2: Parallel agents ─────────────────────────────────────
+    await _progress("analysing", "Analysing brand identity and content...")
     logger.info("\n[PHASE 2] Parallel agents — Logo, Visual, Products, Content, Contact...")
-    await _push({"step": "analysing", "message": "Analysing brand identity and content..."})
     phase2_start = time.time()
 
     agents_2 = [
@@ -356,14 +405,18 @@ async def _run_agentic_scrape(
     phase2_time = time.time() - phase2_start
     logger.info(f"[PHASE 2] complete in {phase2_time:.1f}s — "
                 f"products={len(state.products)}, logo={'found' if state.logo_bytes else 'not found'}, "
-                f"primary_color={state.primary_color}")
+                f"palette={state.brand_palette}")
 
     # ── Phase 3: Web Search (fills gaps from Brand Intelligence) ─────
+    if state.data_gaps:
+        search_msg = "Filling data gaps with web search..."
+    else:
+        search_msg = "No additional web search needed."
+    await _progress("searching", search_msg, skipped=not bool(state.data_gaps))
     logger.info("\n[PHASE 3] WebSearchAgent...")
     phase3_start = time.time()
 
     if state.data_gaps:
-        await _push({"step": "searching", "message": "Filling data gaps with web search..."})
         ws_agent = WebSearchAgent(gemini_client, gemini_model, storage_dir)
         await ws_agent.execute(state)
 
@@ -371,8 +424,8 @@ async def _run_agentic_scrape(
     logger.info(f"[PHASE 3] complete in {phase3_time:.1f}s")
 
     # ── Phase 4: Assemble response ───────────────────────────────────
+    await _progress("assembling", "Assembling brand profile...")
     logger.info("\n[PHASE 4] Assembling response...")
-    await _push({"step": "assembling", "message": "Assembling brand profile..."})
     response = _assemble_response(state, overall_start)
 
     total_time = time.time() - overall_start
@@ -381,20 +434,108 @@ async def _run_agentic_scrape(
 
     # ── Save metadata to disk ─────────────────────────────────────
     _save_metadata(response, state, storage_dir)
+    _append_domain_brand_index(storage_dir, state)
 
     return response
 
 
-def _build_llm_usage(state) -> dict:
-    """Safely aggregate LLM usage from state, guarding against stale module cache."""
-    calls = getattr(state, "llm_calls", [])
-    return {
-        "total_calls": len(calls),
-        "total_prompt_tokens": sum(c.get("prompt_tokens", 0) for c in calls),
-        "total_output_tokens": sum(c.get("output_tokens", 0) for c in calls),
-        "total_tokens": sum(c.get("total_tokens", 0) for c in calls),
-        "calls": calls,
-    }
+def _append_domain_brand_index(storage_dir: Path, state) -> None:
+    """Persist latest brand palette per registrable domain for quick lookup across scrapes."""
+    try:
+        url = (state.website_url or "").strip()
+        if not url or not state.brand_palette:
+            return
+        domain = urlparse(url).netloc.lower()
+        if domain.startswith("www."):
+            domain = domain[4:]
+        if not domain:
+            return
+        path = storage_dir / "smart_scrape" / "_domain_brand_colors.json"
+        data: Dict[str, Any] = {}
+        if path.exists():
+            data = json.loads(path.read_text(encoding="utf-8"))
+        ca = state.color_audit or {}
+        data[domain] = {
+            "last_scrape_id": state.scrape_id,
+            "last_updated": datetime.utcnow().isoformat() + "Z",
+            "website_url": state.website_url,
+            "brand_palette": dict(state.brand_palette),
+            "color_audit_summary": {
+                "primary_source": ca.get("primary_source"),
+                "rules_fired": ca.get("rules_fired"),
+                "pipeline_version": ca.get("pipeline_version"),
+            },
+        }
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        logger.debug("[domain_brand_index] failed: %s", e)
+
+
+def _parse_rgb(hex_color: str) -> tuple[int, int, int]:
+    """Return (R, G, B) ints from a 3- or 6-digit hex string."""
+    h = (hex_color or "").lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    if len(h) < 6:
+        h = h.ljust(6, "0")
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def _normalize_hex_color_list(colors: Optional[List[str]], max_colors: int = 24) -> List[str]:
+    """Dedupe, normalize to ``#RRGGBB`` uppercase, preserve order."""
+    seen: set = set()
+    out: List[str] = []
+    for c in colors or []:
+        if not c or not isinstance(c, str):
+            continue
+        h = c.strip().upper()
+        if not h.startswith("#"):
+            h = "#" + h
+        if len(h) == 4 and h.startswith("#"):
+            h = "#" + "".join(ch * 2 for ch in h[1:])
+        if len(h) >= 7:
+            h = h[:7]
+            if h not in seen:
+                seen.add(h)
+                out.append(h)
+        if len(out) >= max_colors:
+            break
+    return out
+
+
+def _normalize_hex_one(raw: Optional[str]) -> Optional[str]:
+    """Normalize a single hex string to ``#RRGGBB`` or ``None`` if invalid."""
+    out = _normalize_hex_color_list([raw] if raw else [], max_colors=1)
+    return out[0] if out else None
+
+
+def _visual_branding_hex_triple(state: ScrapeState) -> tuple[str, str, str]:
+    """Primary / secondary / accent for ``VisualBranding`` from ``brand_palette``.
+
+    Per-slot fallbacks when a key is missing: ``#1A1A2E``, ``#FFFFFF``, ``#4F46E5``.
+    Rollback (list or merged swatches): ``VISUAL_BRANDING_ROLLBACK.md``.
+    """
+    bp = state.brand_palette or {}
+    d1, d2, d3 = "#1A1A2E", "#FFFFFF", "#4F46E5"
+    p = _normalize_hex_one(bp.get("primary") if isinstance(bp.get("primary"), str) else None)
+    s = _normalize_hex_one(bp.get("secondary") if isinstance(bp.get("secondary"), str) else None)
+    a = _normalize_hex_one(bp.get("accent") if isinstance(bp.get("accent"), str) else None)
+    return (p or d1, s or d2, a or d3)
+
+
+def _contrast_ratio(hex1: str, hex2: str) -> float:
+    """WCAG relative luminance contrast ratio between two hex colours."""
+    def _rel_lum(hex_c: str) -> float:
+        r, g, b = _parse_rgb(hex_c)
+        rs, gs, bs = r / 255.0, g / 255.0, b / 255.0
+        rs = rs / 12.92 if rs <= 0.03928 else ((rs + 0.055) / 1.055) ** 2.4
+        gs = gs / 12.92 if gs <= 0.03928 else ((gs + 0.055) / 1.055) ** 2.4
+        bs = bs / 12.92 if bs <= 0.03928 else ((bs + 0.055) / 1.055) ** 2.4
+        return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs
+
+    l1 = _rel_lum(hex1) + 0.05
+    l2 = _rel_lum(hex2) + 0.05
+    return max(l1, l2) / min(l1, l2)
 
 
 def _assemble_response(state: ScrapeState, start_time: float) -> SmartScrapeResponse:
@@ -437,12 +578,19 @@ def _assemble_response(state: ScrapeState, start_time: float) -> SmartScrapeResp
         content_themes=bi.get("content_themes"),
     )
 
+    primary_hex, secondary_hex, accent_hex = _visual_branding_hex_triple(state)
+
+    headline_text_color = state.headline_text_color
+    if not headline_text_color or _contrast_ratio(primary_hex, headline_text_color) < 4.5:
+        headline_text_color = "#FFFFFF"
+
     visual_branding = VisualBranding(
-        primary_color=state.primary_color,
-        secondary_color=state.secondary_color,
+        primary_color=primary_hex,
+        secondary_color=secondary_hex,
+        accent_color=accent_hex,
         headline_font=state.headline_font,
         body_font=state.body_font,
-        headline_text_color=state.headline_text_color,
+        headline_text_color=headline_text_color,
         google_fonts_url=state.google_fonts_url,
         logo_url=state.logo_cloudinary_url or state.logo_url,
         logo_local_path=state.logo_local_path,
@@ -561,13 +709,13 @@ def _assemble_response(state: ScrapeState, start_time: float) -> SmartScrapeResp
             "services_found": len(services),
             "content_assets_found": len(content_assets or []),
             "logo_found": state.logo_local_path is not None,
-            "colors_extracted": bool(state.primary_color),
+            "colors_extracted": bool(state.primary_color or state.colors_found or state.brand_palette),
             "visual_analysis": bool(state.visual_analysis),
             "data_gaps": state.data_gaps,
             "total_time_seconds": round(total_time, 1),
             "engine": "agentic_v2",
-            "llm_usage": _build_llm_usage(state),
         },
+        color_audit=state.color_audit,
     )
 
 

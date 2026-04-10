@@ -313,28 +313,15 @@ def extract_jsonld_products(structured_data: List[Dict[str, Any]]) -> List[Dict[
             for item in node.get("hasMenuItem", []):
                 _process_node(item)
 
-        # ItemList (product collections — common on e-commerce category pages)
+        # ItemList (product collections)
         elif ntype == "ItemList":
             for elem in node.get("itemListElement", []):
-                if not isinstance(elem, dict):
-                    continue
-                inner = elem.get("item")
-                if isinstance(inner, dict):
-                    _process_node(inner)
-                elif elem.get("name"):
-                    # ListItem with name/url/image directly on it (Mamaearth style)
-                    img = elem.get("image", "")
-                    img_list = [img] if isinstance(img, str) and img else []
-                    products.append({
-                        "name": elem["name"].strip(),
-                        "description": (elem.get("description") or "")[:200],
-                        "price": None,
-                        "image_urls": img_list[:3],
-                        "url": elem.get("url", ""),
-                        "category": "",
-                    })
-                else:
-                    _process_node(elem)
+                if isinstance(elem, dict):
+                    inner = elem.get("item")
+                    if isinstance(inner, dict):
+                        _process_node(inner)
+                    else:
+                        _process_node(elem)
 
         # @graph array
         graph = node.get("@graph")
@@ -410,23 +397,6 @@ def extract_all_images(soup: BeautifulSoup, base_url: str, limit: int = 200) -> 
             if hasattr(child, 'name'):
                 _header_tags.add(id(child))
 
-    # Pre-compute "Trusted by / Clients / Partners" sections — images inside
-    # these are OTHER companies' logos, not the site's own logo.
-    _TRUSTED_KW = {"trusted", "client", "partner", "as seen", "featured in",
-                   "our clients", "our partners", "brands we", "companies we",
-                   "they trust", "work with", "associated"}
-    _client_tags: set = set()
-    for section in soup.find_all(["section", "div", "aside"]):
-        # Check headings and text content near the section start
-        heading = section.find(["h1", "h2", "h3", "h4", "h5", "h6", "p", "span"])
-        if heading:
-            heading_text = heading.get_text(strip=True).lower()
-            if any(kw in heading_text for kw in _TRUSTED_KW):
-                _client_tags.add(id(section))
-                for child in section.descendants:
-                    if hasattr(child, 'name'):
-                        _client_tags.add(id(child))
-
     # Priority CSS selectors for logo detection
     _LOGO_SELECTORS = {
         ".logo img", "#logo img", ".site-logo img", ".brand-logo img",
@@ -481,8 +451,6 @@ def extract_all_images(soup: BeautifulSoup, base_url: str, limit: int = 200) -> 
             first_in_nav_found = True
             is_first = True
 
-        in_client_section = id(img) in _client_tags
-
         images.append({
             "src": abs_url,
             "alt": alt,
@@ -494,7 +462,6 @@ def extract_all_images(soup: BeautifulSoup, base_url: str, limit: int = 200) -> 
             "is_first_in_nav": is_first,
             "priority_selector": abs_url in _priority_srcs,
             "ancestor_href": ancestor_href,
-            "in_client_section": in_client_section,
         })
         if len(images) >= limit:
             break

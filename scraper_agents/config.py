@@ -74,6 +74,9 @@ LOGO_SCORE = {
     "white_variant_penalty": -8,
     "company_slug_affinity": 8,
     "high_confidence_threshold": 10,
+    # When logo_wordmark_preference is True: wide lockups vs small square icons
+    "wordmark_wide_bonus": 8,
+    "home_square_icon_penalty": -6,
 }
 
 # ---------------------------------------------------------------------------
@@ -100,6 +103,64 @@ COLOR_CONFIG = {
     "near_white_threshold": 220,   # R,G,B all > this → near-white
     "gray_spread_threshold": 25,   # max-min < this → achromatic
     "gray_brightness_min": 70,     # R > this and achromatic → mid-gray
+
+    # resolve_brand_palette: SaaS-like sites use website primary when logo is weak
+    "palette_logo_saturation_floor": 38.0,
+    "palette_hue_crosscheck_deg": 45.0,
+}
+
+# Bumped when color candidate ordering, resolve_brand_palette rules, or audit shape changes.
+COLOR_PIPELINE_VERSION = "2026.04.07"
+
+# ---------------------------------------------------------------------------
+# Logo agent (feature flags + Playwright tuning)
+# ---------------------------------------------------------------------------
+LOGO_CONFIG = {
+    # When True: run Gemini logo search if no logo yet after earlier strategies,
+    # even when HTML candidates exist (fixes wrong-first-pick / all-failed-downloads).
+    "expand_gemini_fallback": True,
+    # Hosts that may serve first-party logos (JSON-LD / OG may point here)
+    "trusted_logo_cdn_hosts": frozenset({
+        "cdn.shopify.com",
+        "cdn.shopifycdn.net",
+        "images.ctfassets.net",
+        "res.cloudinary.com",
+        "media.graphassets.com",
+        "static.wixstatic.com",
+        "assets.squarespace.com",
+        "framerusercontent.com",
+        "images.prismic.io",
+        "cdn.sanity.io",
+        "lh3.googleusercontent.com",
+        # Zomato / Blinkit first-party CDN (og:image / static assets)
+        "b.zmtcdn.com",
+        # JSON-LD Organization.logo on Vercel-hosted marketing sites
+        "public.blob.vercel-storage.com",
+        "blob.vercel-storage.com",
+    }),
+    # Playwright: default preserves legacy behavior; enable for JS-heavy headers
+    "playwright_aggressive_render": False,
+    "playwright_wait_until": "domcontentloaded",  # "load" | "networkidle" when aggressive
+    "playwright_extra_wait_ms": 0,
+    "playwright_wait_for_logo_selectors": True,
+    "playwright_extract_computed_background": True,
+    # Video poster + <picture> sources in header/nav only (try/except in agent)
+    "playwright_header_media_extras": True,
+    # Hover brand area once to capture hover-swapped marks (off by default)
+    "playwright_hover_logo_probe": False,
+    "playwright_hover_settle_ms": 500,
+    # P1 logo pipeline: prefer inline SVG from canonical home link (Notion/GitHub-class)
+    # before ranked raster <img> candidates; falls back to existing waterfall on failure.
+    "logo_svg_home_capture": True,
+    # Boost wide wordmarks; slight penalty for small squares on home link (icon vs lockup).
+    "logo_wordmark_preference": True,
+    # Reserved: pick best of top candidates via Gemini vision (off by default).
+    "logo_gemini_candidate_verify": False,
+    # Extra settle time for A3 home-SVG (SVG hydration on SPAs).
+    "logo_svg_home_extra_wait_ms": 1500,
+    # Reject raster logos that look like favicons / nav sprites (see validate_logo_image).
+    "logo_reject_favicon_square_max": 128,
+    "logo_marketing_min_height_px": 28,
 }
 
 # ---------------------------------------------------------------------------
@@ -141,16 +202,10 @@ PRODUCT_URL_PATTERNS = ['/products/', '/shop/', '/catalog/', '/store/', '/item/'
 # parsing and product catalog crawling.  English variants (/en/, /en-us/) are
 # deliberately omitted so they pass through.
 LOCALE_PATH_RE = re.compile(
-    # Language codes
     r'/(de|fr|es|it|pt|nl|sv|no|da|fi|pl|ru|ja|ko|zh|zh-cn|zh-tw|'
     r'ar|he|th|vi|id|ms|tr|cs|hu|ro|bg|uk|el|hi|bn|'
-    # Language-country combos
     r'de-de|fr-fr|es-es|pt-br|pt-pt|ja-jp|ko-kr|zh-hans|zh-hant|'
-    r'nl-nl|sv-se|nb-no|da-dk|fi-fi|pl-pl|ru-ru|'
-    # Country codes (Apple-style: /jp/, /cn/, /kr/, etc.)
-    r'jp|cn|tw|hk|kr|br|mx|cl|co|pe|at|ch|be|lu|'
-    r'cz|dk|ie|il|my|ph|sg|za|ae|sa|nz|se|'
-    r'gr|hr|sk|si|rs|lt|lv|ee|is)/',
+    r'nl-nl|sv-se|nb-no|da-dk|fi-fi|pl-pl|ru-ru)/',
     re.IGNORECASE,
 )
 TAXONOMY_SEGMENTS = {

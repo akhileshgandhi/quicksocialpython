@@ -10,11 +10,11 @@ import logging
 import re
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 from PIL import Image
 
-from scraper_agents.config import LOGO_SCORE
+from scraper_agents.config import LOGO_CONFIG, LOGO_SCORE
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +124,27 @@ def score_logo_candidate(
             score += LOGO_SCORE["white_variant_penalty"]  # negative value
             break
 
+    # ── Next.js ``static/media/image N.*`` — usually carousel/section art, not the mark
+    if "/_next/" in src.lower() and "main_logo" not in src.lower():
+        dec = unquote(src.replace("+", " ")).lower()
+        if "logo" not in dec and re.search(
+            r"[/+]static[/+]media[/+]image[\s_-]*\d", dec.replace("\\", "/")
+        ):
+            score -= 14
+
+    # Bonus: explicit main_logo / brand mark filename
+    if "main_logo" in unquote(src.lower()):
+        score += 10
+
+    # Zomato-style official mark: square_*_logo*.svg under /images/ on CDN
+    dec_lower = unquote(src.lower())
+    if "square_" in dec_lower and "logo" in dec_lower and dec_lower.endswith(".svg"):
+        score += 10
+
+    # Marketing / campaign hashes under o2_assets (often hero promos, not navbar logo)
+    if "/o2_assets/" in dec_lower and "logo" not in dec_lower:
+        score -= 12
+
     # ── Penalise likely product / hero photos ─────────────────────────
     for bad_kw in [
         "hero", "banner", "slide", "car-", "product", "feature",
@@ -135,10 +156,6 @@ def score_logo_candidate(
         if hit_src or hit_alt:
             score -= 6
             break
-
-    # ── "Trusted by" / client logo section penalty ────────────────────
-    if img.get("in_client_section"):
-        return -999  # hard reject — these are OTHER companies' logos, never pick them
 
     # ── UI element penalty (close/menu/back buttons) ──────────────────
     for ui_kw in [
@@ -187,7 +204,6 @@ def score_logo_candidate(
         # to extract the real filename for foreign-company detection
         src_fn = src_path_no_query.rsplit("/", 1)[-1] if "/" in src_path_no_query else src_path_no_query
         if "url=" in src_path:
-            from urllib.parse import unquote
             decoded = unquote(src_path.split("url=", 1)[1].split("&")[0])
             decoded_fn = decoded.rsplit("/", 1)[-1] if "/" in decoded else decoded
             if decoded_fn:
@@ -207,6 +223,22 @@ def score_logo_candidate(
             ]
             if other_names:
                 score += LOGO_SCORE["foreign_company_penalty"]  # negative value
+
+    # ── Wordmark vs small square icon (when enabled) ─────────────────
+    if LOGO_CONFIG.get("logo_wordmark_preference", False):
+        w = int(img.get("width") or 0)
+        h = int(img.get("height") or 0)
+        if w > 0 and h > 0:
+            aspect = w / max(h, 1)
+            if aspect >= 1.75:
+                score += LOGO_SCORE.get("wordmark_wide_bonus", 8)
+            elif (
+                img.get("is_home_link")
+                and 0.88 <= aspect <= 1.12
+                and 80 <= w <= 200
+                and 80 <= h <= 200
+            ):
+                score += LOGO_SCORE.get("home_square_icon_penalty", -6)
 
     return score
 
@@ -306,6 +338,8 @@ def is_icon_image(url: str, alt: str = "") -> bool:
 def validate_logo_image(
     image_bytes: bytes,
     is_favicon: bool = False,
+    *,
+    relaxed_structured_data: bool = False,
 ) -> Dict[str, Any]:
     """
     Validate that downloaded bytes are actually a usable logo image.
@@ -335,6 +369,37 @@ def validate_logo_image(
             }
 
         aspect = width / max(height, 1)
+
+        # ── Favicon / app-icon squares (Clearbit, favicon APIs, apple-touch) ──
+        if not is_favicon and not relaxed_structured_data:
+            max_sq = int(LOGO_CONFIG.get("logo_reject_favicon_square_max") or 0)
+            if max_sq > 0:
+                if (
+                    0.88 <= aspect <= 1.12
+                    and width <= max_sq
+                    and height <= max_sq
+                    and min(width, height) >= 16
+                ):
+                    return {
+                        "valid": False,
+                        "reason": (
+                            f"Square {width}x{height}px — likely favicon or app icon, "
+                            "not a marketing logo"
+                        ),
+                        "width": width,
+                        "height": height,
+                    }
+            min_mark_h = int(LOGO_CONFIG.get("logo_marketing_min_height_px") or 0)
+            if min_mark_h > 0 and height < min_mark_h:
+                return {
+                    "valid": False,
+                    "reason": (
+                        f"Raster height {height}px below marketing minimum ({min_mark_h}px) "
+                        "— likely nav sprite or favicon strip"
+                    ),
+                    "width": width,
+                    "height": height,
+                }
 
         # ── Shape-based hard rejections ───────────────────────────────
         if aspect < 0.5 and height > 400:
@@ -504,16 +569,27 @@ def validate_logo_image(
             needs_resize = True
         elif width > 800 and height > 400:
             if aspect < 2.0:
-                return {
-                    "valid": False,
-                    "reason": (
-                        f"Ambiguous large image ({width}x{height}px, aspect {aspect:.2f})"
-                        " — too close to hero/banner proportions"
-                    ),
-                    "width": width,
-                    "height": height,
-                }
-            needs_resize = True
+                # OG / JSON-LD often point at 1200×630 (or similar) social-preview
+                # assets named *logo* — same aspect as generic og:image but intentional.
+                if (
+                    relaxed_structured_data
+                    and 1.35 <= aspect <= 2.2
+                    and width <= 1600
+                    and 400 <= height <= 900
+                ):
+                    needs_resize = True
+                else:
+                    return {
+                        "valid": False,
+                        "reason": (
+                            f"Ambiguous large image ({width}x{height}px, aspect {aspect:.2f})"
+                            " — too close to hero/banner proportions"
+                        ),
+                        "width": width,
+                        "height": height,
+                    }
+            else:
+                needs_resize = True
 
         if needs_resize:
             new_w = min(width, MAX_LOGO_PX)
@@ -583,9 +659,9 @@ def convert_svg_to_png(svg_bytes: bytes, target_size: int = 512) -> Optional[byt
             )
             return png_bytes
     except ImportError:
-        logger.debug("[SVG->PNG] cairosvg not available, using Playwright fallback")
-    except Exception:
-        logger.debug("[SVG->PNG] cairosvg unavailable (libcairo not found), using Playwright fallback")
+        logger.info("[SVG->PNG] cairosvg not available, trying Playwright fallback")
+    except Exception as e:
+        logger.info(f"[SVG->PNG] cairosvg failed ({e}), trying Playwright fallback")
 
     # ── Strategy 2: Playwright headless Chromium screenshot ───────────
     try:
@@ -613,10 +689,7 @@ def convert_svg_to_png(svg_bytes: bytes, target_size: int = 512) -> Optional[byt
 
             pw = _sp().start()
             try:
-                browser = pw.chromium.launch(
-                    headless=True,
-                    args=["--no-sandbox", "--disable-dev-shm-usage"],
-                )
+                browser = pw.chromium.launch(headless=True)
                 page = browser.new_page(
                     viewport={
                         "width": target_size + 40,
@@ -648,22 +721,11 @@ def convert_svg_to_png(svg_bytes: bytes, target_size: int = 512) -> Optional[byt
             finally:
                 pw.stop()
 
-        # Run in a separate thread to avoid "Sync API inside asyncio loop" error.
-        # Retry once on transient browser process crashes (common under concurrent load).
-        import time as _time
+        # Run in a separate thread to avoid "Sync API inside asyncio loop" error
         from concurrent.futures import ThreadPoolExecutor
 
-        png_bytes = None
-        for _attempt in range(2):
-            try:
-                with ThreadPoolExecutor(max_workers=1) as pool:
-                    png_bytes = pool.submit(_render).result(timeout=30)
-                if png_bytes:
-                    break
-            except Exception as _render_err:
-                logger.debug(f"[SVG->PNG] Playwright attempt {_attempt + 1} failed: {_render_err}")
-                if _attempt == 0:
-                    _time.sleep(1)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            png_bytes = pool.submit(_render).result(timeout=30)
 
         if png_bytes:
             img = Image.open(BytesIO(png_bytes))

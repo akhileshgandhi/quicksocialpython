@@ -111,7 +111,6 @@ class BrandIntelligenceAgent(BaseAgent):
                     response_mime_type="application/json",
                 ),
             )
-            self.track_usage(response, "brand_analysis", state)
             text = response.text or ""
             text = _extract_json(text)
 

@@ -2,9 +2,10 @@
 LogoAgent — finds, downloads, validates, and saves the company logo.
 
 Waterfall strategy (stops on first success):
-  A. JSON-LD Organization logo
-  B. OG image (if filename contains "logo")
-  C. High-confidence HTML candidates (priority selectors, scored/ranked)
+  A. OG image (if filename contains "logo") + stale Next.js OG refresh (A2)
+  A3. Playwright inline SVG inside header/nav home link (when enabled)
+  A. JSON-LD Organization logo (ambiguous small squares keep fallback, try HTML next)
+  B. High-confidence HTML candidates (priority selectors, scored/ranked)
   D. Playwright rendered DOM
   E. Gemini web search for logo URL
   F. Wikipedia pageimages API
@@ -33,7 +34,13 @@ from PIL import Image
 
 from scraper_agents.agents.base import BaseAgent
 from scraper_agents.state import ScrapeState
-from scraper_agents.config import TIMEOUTS, LOGO_SCORE, DEFAULT_HEADERS
+from scraper_agents.config import (
+    TIMEOUTS,
+    LOGO_SCORE,
+    DEFAULT_HEADERS,
+    LOGO_CONFIG,
+    THEME_CDN_DOMAINS,
+)
 from scraper_agents.extractors.html_helpers import (
     make_absolute_url,
     extract_jsonld_logo,
@@ -74,6 +81,207 @@ _PROBE_PATHS = [
 ]
 
 LOW_CONFIDENCE_THRESHOLD = LOGO_SCORE.get("high_confidence_threshold", 10)
+
+
+def _trusted_logo_cdn_hosts() -> set[str]:
+    """Hosts that may serve first-party logos (JSON-LD / OG may point here)."""
+    raw = LOGO_CONFIG.get("trusted_logo_cdn_hosts", frozenset())
+    hosts = {h.lower().lstrip("www.") for h in raw}
+    for d in THEME_CDN_DOMAINS:
+        if isinstance(d, str):
+            hosts.add(d.lower().lstrip("www."))
+    return hosts
+
+
+def structured_logo_url_trusted(logo_url: str, base_url: str) -> bool:
+    """True if *logo_url* is same-site or on a known first-party CDN for *base_url*."""
+    lu = urlparse(logo_url)
+    bu = urlparse(base_url)
+    if not bu.netloc:
+        return True
+    if not lu.netloc:
+        return True
+    lh = lu.netloc.lower().split(":")[0].lstrip("www.")
+    bh = bu.netloc.lower().split(":")[0].lstrip("www.")
+    if lh == bh:
+        return True
+    if lh.endswith("." + bh):
+        return True
+    if lh in _trusted_logo_cdn_hosts():
+        return True
+    # Vercel Blob URLs used in JSON-LD Organization.logo (subdomain.public.blob.vercel-storage.com)
+    for suf in ("public.blob.vercel-storage.com", "blob.vercel-storage.com"):
+        if lh == suf or lh.endswith("." + suf):
+            return True
+    return False
+
+
+def _is_nextjs_numbered_media_image(url: str) -> bool:
+    """True for ``.../static/media/image 2.*`` / ``image%202`` (carousel art, not navbar mark)."""
+    dec = unquote(url.lower())
+    if "main_logo" in dec:
+        return False
+    return bool(re.search(r"static/media/image[\s.%20_-]*\d+", dec))
+
+
+# Playwright: collect logo-like asset URLs from the *rendered* page (A2 refresh + optional D extras).
+# includeMeta: when False, skip og/twitter (e.g. second pass after hover — avoid duplicate meta).
+_PLAYWRIGHT_LOGO_URLS_JS = r"""
+(includeMeta) => {
+  const out = [];
+  const seen = new Set();
+  const push = (u) => {
+    if (!u || u.startsWith('data:') || seen.has(u)) return;
+    seen.add(u);
+    out.push(u);
+  };
+  const parseBg = (bg) => {
+    if (!bg || bg === 'none') return;
+    const i = bg.indexOf('url(');
+    if (i < 0) return;
+    let rest = bg.slice(i + 4).trim();
+    let u = '';
+    if (rest[0] === '"' || rest[0] === "'") {
+      const q = rest[0];
+      const end = rest.indexOf(q, 1);
+      if (end > 0) u = rest.slice(1, end);
+    } else {
+      const end = rest.indexOf(')');
+      if (end > 0) u = rest.slice(0, end).trim();
+    }
+    if (u && !u.startsWith('data:')) push(u);
+  };
+  try {
+    document.querySelectorAll(
+      '.main_logo, .navbar-brand, .site-logo, #logo, a.navbar-brand, .brand-mark'
+    ).forEach((el) => {
+      try { parseBg(getComputedStyle(el).backgroundImage); } catch (e) {}
+    });
+  } catch (e) {}
+  if (includeMeta) {
+    try {
+      document.querySelectorAll(
+        'meta[property="og:image"], meta[name="twitter:image"], meta[name="twitter:image:src"]'
+      ).forEach((m) => {
+        const c = m.getAttribute('content');
+        if (c) push(c.trim());
+      });
+    } catch (e) {}
+  }
+  try {
+    document.querySelectorAll(
+      'nav img, header img, .navbar-brand img, a.navbar-brand img'
+    ).forEach((img) => {
+      try {
+        if (img.currentSrc) push(img.currentSrc);
+        else if (img.src) push(img.src);
+        const ss = img.getAttribute('srcset');
+        if (ss) {
+          const first = ss.split(',')[0].trim().split(/\s+/)[0];
+          if (first) push(first);
+        }
+      } catch (e) {}
+    });
+  } catch (e) {}
+  return out;
+}
+"""
+
+# Video / <picture> in header only (optional second evaluate — keeps meta separate from media)
+_PLAYWRIGHT_HEADER_MEDIA_JS = r"""
+() => {
+  const out = [];
+  const seen = new Set();
+  const push = (u) => {
+    if (!u || u.startsWith('data:') || seen.has(u)) return;
+    seen.add(u);
+    out.push(u);
+  };
+  try {
+    document.querySelectorAll(
+      'header video[poster], nav video[poster], .navbar-brand video[poster]'
+    ).forEach((v) => {
+      try {
+        const p = v.getAttribute('poster');
+        if (p) push(p.trim());
+      } catch (e) {}
+    });
+  } catch (e) {}
+  try {
+    document.querySelectorAll('header picture source, nav picture source').forEach((s) => {
+      try {
+        const ss = s.getAttribute('srcset');
+        const sr = s.getAttribute('src');
+        if (ss) {
+          const first = ss.split(',')[0].trim().split(/\s+/)[0];
+          if (first) push(first);
+        } else if (sr) push(sr.trim());
+      } catch (e) {}
+    });
+  } catch (e) {}
+  return out;
+}
+"""
+
+# Best-scoring inline SVG inside a canonical home <a> in header/nav (SVG-first sites).
+_PLAYWRIGHT_HOME_SVG_JS = r"""
+() => {
+  function isHomeHref(href) {
+    if (!href) return false;
+    const h = href.trim();
+    if (h === '/' || h === '#' || h === '') return true;
+    try {
+      const u = new URL(h, window.location.origin);
+      let path = u.pathname.replace(/\/+$/, '') || '/';
+      if (path === '/') return true;
+      if (/^\/[a-z]{2}(-[a-z]{2})?(\.html?)?$/i.test(path)) return true;
+    } catch (e) {}
+    return false;
+  }
+  function scoreSvg(svg) {
+    const vb = svg.getAttribute('viewBox') || '';
+    if (vb) {
+      const p = vb.trim().split(/[\s,]+/);
+      if (p.length >= 4) {
+        const vw = parseFloat(p[2]), vh = parseFloat(p[3]);
+        if (!isNaN(vw) && !isNaN(vh) && vw > 0 && vh > 0) return vw * vh;
+      }
+    }
+    const w = parseFloat(svg.getAttribute('width')) || 0;
+    const h = parseFloat(svg.getAttribute('height')) || 0;
+    if (w > 0 && h > 0) return w * h;
+    return (svg.outerHTML || '').length;
+  }
+  let best = null;
+  let bestScore = -1;
+  const roots = [...document.querySelectorAll('header, nav, [role="banner"]')];
+  for (const root of roots) {
+    const links = root.querySelectorAll('a[href]');
+    for (const a of links) {
+      if (!isHomeHref(a.getAttribute('href'))) continue;
+      const svgs = a.querySelectorAll('svg');
+      for (const svg of svgs) {
+        const html = svg.outerHTML;
+        if (html.length < 200) continue;
+        const vb = svg.getAttribute('viewBox') || '';
+        if (vb) {
+          const p = vb.trim().split(/[\s,]+/);
+          if (p.length >= 4) {
+            const vw = parseFloat(p[2]), vh = parseFloat(p[3]);
+            if (!isNaN(vw) && !isNaN(vh) && vw <= 20 && vh <= 20) continue;
+          }
+        }
+        const sc = scoreSvg(svg);
+        if (sc > bestScore) {
+          bestScore = sc;
+          best = html;
+        }
+      }
+    }
+  }
+  return best;
+}
+"""
 
 
 class LogoAgent(BaseAgent):
@@ -148,27 +356,80 @@ class LogoAgent(BaseAgent):
         _jsonld_fallback = False
 
         if og_logo_url and not self.should_stop():
-            self.log(f"[A] OG image logo: {og_logo_url}")
-            result = await self._try_download(og_logo_url, state, company_name)
-            if result:
-                # Check if it's tiny — if so, save as fallback
-                if self._is_tiny_logo(state):
-                    self.log("[A] OG logo is tiny — saving as fallback, trying HTML next")
-                    _jsonld_fallback = True
-                else:
-                    return
+            if not structured_logo_url_trusted(og_logo_url, base_url):
+                self.log(
+                    f"[A] OG logo host does not match site — skipping: {og_logo_url}",
+                    level="warning",
+                )
+            else:
+                self.log(f"[A] OG image logo: {og_logo_url}")
+                result = await self._try_download(
+                    og_logo_url,
+                    state,
+                    company_name,
+                    relaxed_structured_data=True,
+                )
+                if result:
+                    # Check if it's tiny — if so, save as fallback
+                    if self._is_tiny_logo(state):
+                        self.log("[A] OG logo is tiny — saving as fallback, trying HTML next")
+                        _jsonld_fallback = True
+                    else:
+                        return
+                elif (
+                    self._last_download_reason
+                    and "404" in self._last_download_reason
+                    and "/_next/" in og_logo_url.lower()
+                ):
+                    # Static HTML often lists a stale hashed ``/_next/static/media/`` URL;
+                    # the live page has the current hash (OG 404 → wrong HTML candidate wins).
+                    self.log(
+                        "[A2] Next.js OG URL returned 404 — fetching live og:image / header",
+                        level="warning",
+                    )
+                    if await self._try_playwright_fresh_logo_after_stale_next_og(
+                        state, base_url, company_name, stale_og_url=og_logo_url
+                    ):
+                        if self._is_tiny_logo(state):
+                            self.log("[A2] Live logo is tiny — saving as fallback, trying HTML next")
+                            _jsonld_fallback = True
+                        else:
+                            return
+
+        # ── Strategy A3: Playwright — inline SVG in home link (after OG, before JSON-LD) ──
+        if LOGO_CONFIG.get("logo_svg_home_capture", True) and not self.should_stop():
+            self.log("[A3] Playwright home-link inline SVG")
+            if await self._try_playwright_home_svg(state, company_name):
+                return
 
         # JSON-LD: site literally declares "this is my logo" in machine-readable
         # structured data. Reliable but sometimes stale.
         if jsonld_logo_url and not _jsonld_fallback and not self.should_stop():
-            self.log(f"[A] JSON-LD logo: {jsonld_logo_url}")
-            result = await self._try_download(jsonld_logo_url, state, company_name)
-            if result:
-                if self._is_tiny_logo(state):
-                    self.log("[A] JSON-LD logo is tiny — saving as fallback, trying HTML next")
-                    _jsonld_fallback = True
-                else:
-                    return
+            if not structured_logo_url_trusted(jsonld_logo_url, base_url):
+                self.log(
+                    f"[A] JSON-LD logo host does not match site — skipping: {jsonld_logo_url}",
+                    level="warning",
+                )
+            else:
+                self.log(f"[A] JSON-LD logo: {jsonld_logo_url}")
+                result = await self._try_download(
+                    jsonld_logo_url,
+                    state,
+                    company_name,
+                    relaxed_structured_data=True,
+                )
+                if result:
+                    if self._is_tiny_logo(state):
+                        self.log("[A] JSON-LD logo is tiny — saving as fallback, trying HTML next")
+                        _jsonld_fallback = True
+                    elif self._is_ambiguous_square_logo(state):
+                        self.log(
+                            "[A] JSON-LD logo is small square — may be icon not lockup; "
+                            "keeping as fallback, trying HTML next"
+                        )
+                        _jsonld_fallback = True
+                    else:
+                        return
 
         # ── Strategy B: High-confidence HTML candidates ───────────────
         # Scored & ranked — tried when authoritative sources fail OR were tiny.
@@ -199,11 +460,17 @@ class LogoAgent(BaseAgent):
                 return
 
         # ── Strategy E: Gemini web search for logo URL ────────────────
-        if not self.should_stop() and not scored_candidates:
-            self.log("[E] Gemini web search")
-            ws_found = await self._try_web_search(state, company_name, base_url)
-            if ws_found:
-                return
+        if not self.should_stop():
+            expand = LOGO_CONFIG.get("expand_gemini_fallback", True)
+            need_gemini = (
+                not scored_candidates
+                or (expand and not state.logo_url)
+            )
+            if need_gemini:
+                self.log("[E] Gemini web search")
+                ws_found = await self._try_web_search(state, company_name, base_url)
+                if ws_found:
+                    return
 
         # ── Strategy F: Wikipedia pageimages API ──────────────────────
         if not self.should_stop():
@@ -264,6 +531,21 @@ class LogoAgent(BaseAgent):
         except Exception:
             return False
 
+    @staticmethod
+    def _is_ambiguous_square_logo(state: ScrapeState) -> bool:
+        """True for ~square app icons (e.g. 128x128) that JSON-LD may mislabel as logo."""
+        if not state.logo_bytes:
+            return False
+        try:
+            img = Image.open(BytesIO(state.logo_bytes))
+            w, h = img.size
+            if w < 80 or h < 80 or w > 220 or h > 220:
+                return False
+            aspect = w / max(h, 1)
+            return 0.88 <= aspect <= 1.12
+        except Exception:
+            return False
+
     # ------------------------------------------------------------------
     # OG image extraction
     # ------------------------------------------------------------------
@@ -278,6 +560,219 @@ class LogoAgent(BaseAgent):
                     return url
         return None
 
+    @staticmethod
+    def _rank_fresh_logo_urls(
+        raw_urls: List[str],
+        base_url: str,
+        stale_url: str,
+    ) -> List[str]:
+        """Prefer main_logo / *logo* over Next.js ``media/image N`` carousel assets."""
+        ranked: List[Tuple[int, str]] = []
+        stale_norm = (stale_url or "").rstrip("/").lower()
+        for u in raw_urls:
+            if not u or not str(u).strip():
+                continue
+            u = str(u).strip()
+            if u.startswith("data:"):
+                continue
+            absu = make_absolute_url(u, base_url)
+            if absu.rstrip("/").lower() == stale_norm:
+                continue
+            if not structured_logo_url_trusted(absu, base_url):
+                continue
+            dec = unquote(absu.lower())
+            fn = absu.rsplit("/", 1)[-1].lower()
+            tier = 3
+            if "main_logo" in dec:
+                tier = 0
+            elif _is_nextjs_numbered_media_image(absu):
+                tier = 6
+            elif "logo" in fn or "logo" in dec:
+                tier = 1
+            ranked.append((tier, absu))
+        ranked.sort(key=lambda x: (x[0], len(x[1]), x[1]))
+        out: List[str] = []
+        seen: set = set()
+        for _, u in ranked:
+            if u not in seen:
+                seen.add(u)
+                out.append(u)
+        return out
+
+    async def _try_playwright_fresh_logo_after_stale_next_og(
+        self,
+        state: ScrapeState,
+        base_url: str,
+        company_name: str,
+        stale_og_url: str,
+    ) -> bool:
+        """Re-read live ``og:image`` / header ``img`` when ``/_next/static/media/`` URL 404s.
+
+        Crawler HTML can reference a hashed filename from an older deploy; the live
+        page's meta and ``img`` tags point at the current asset (see also
+        ``chennai_logs.txt`` / legacy ``scraper.py`` OG vs JSON-LD notes).
+        """
+        try:
+            from playwright.sync_api import sync_playwright as _sp  # noqa: F401
+        except ImportError:
+            self.log("Playwright not installed — cannot refresh stale Next OG", level="warning")
+            return False
+
+        def _collect() -> List[str]:
+            from playwright.sync_api import sync_playwright as _sp2
+
+            pw = _sp2().start()
+            urls: List[str] = []
+            try:
+                browser = pw.chromium.launch(headless=True)
+                page = browser.new_page(user_agent=DEFAULT_HEADERS["User-Agent"])
+                page.goto(
+                    state.website_url,
+                    wait_until="domcontentloaded",
+                    timeout=TIMEOUTS["page_load_ms"],
+                )
+                extra_ms = int(LOGO_CONFIG.get("playwright_extra_wait_ms", 0) or 0)
+                if LOGO_CONFIG.get("playwright_aggressive_render"):
+                    extra_ms = max(extra_ms, 2000)
+                page.wait_for_timeout(TIMEOUTS["page_render_wait_ms"] + extra_ms)
+
+                def _merge_eval_result(raw: object) -> None:
+                    for x in raw or []:
+                        s = str(x).strip()
+                        if s and s not in urls:
+                            urls.append(s)
+
+                try:
+                    _merge_eval_result(page.evaluate(_PLAYWRIGHT_LOGO_URLS_JS, True))
+                except Exception as e:
+                    logger.warning("[A2] logo URL evaluate failed: %s", e)
+
+                if LOGO_CONFIG.get("playwright_header_media_extras", True):
+                    try:
+                        _merge_eval_result(page.evaluate(_PLAYWRIGHT_HEADER_MEDIA_JS))
+                    except Exception as e:
+                        logger.warning("[A2] header media evaluate failed: %s", e)
+
+                if LOGO_CONFIG.get("playwright_hover_logo_probe", False):
+                    try:
+                        hover_ms = int(LOGO_CONFIG.get("playwright_hover_settle_ms", 500) or 500)
+                        for sel in (
+                            "header a.navbar-brand",
+                            "nav a.navbar-brand",
+                            "a.navbar-brand",
+                            "header .main_logo",
+                            ".navbar-brand",
+                        ):
+                            try:
+                                loc = page.locator(sel)
+                                if loc.count() == 0:
+                                    continue
+                                loc.first.hover(timeout=3500)
+                                page.wait_for_timeout(hover_ms)
+                                break
+                            except Exception:
+                                continue
+                        try:
+                            _merge_eval_result(page.evaluate(_PLAYWRIGHT_LOGO_URLS_JS, False))
+                        except Exception as e:
+                            logger.warning("[A2] post-hover evaluate failed: %s", e)
+                        if LOGO_CONFIG.get("playwright_header_media_extras", True):
+                            try:
+                                _merge_eval_result(page.evaluate(_PLAYWRIGHT_HEADER_MEDIA_JS))
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        logger.debug("[A2] hover probe skipped: %s", e)
+
+                browser.close()
+            finally:
+                pw.stop()
+            return urls
+
+        try:
+            raw_urls = await asyncio.to_thread(_collect)
+        except Exception as e:
+            self.log(f"[A2] Playwright refresh failed: {e}", level="warning")
+            return False
+
+        candidates = self._rank_fresh_logo_urls(raw_urls, base_url, stale_og_url)
+        if not candidates:
+            self.log("[A2] No alternative logo URLs from live DOM", level="warning")
+            return False
+
+        # Prefer real navbar / CSS assets; try ``media/image N`` only after (carousel junk).
+        primary = [u for u in candidates if not _is_nextjs_numbered_media_image(u)]
+        fallback = [u for u in candidates if _is_nextjs_numbered_media_image(u)]
+        ordered = primary + fallback
+
+        self.log(
+            f"[A2] Trying {len(ordered)} live URL(s) after Next OG 404 "
+            f"({len(primary)} non-carousel first)"
+        )
+        for cand in ordered[:36]:
+            if self.should_stop():
+                break
+            if await self._try_download(
+                cand,
+                state,
+                company_name,
+                relaxed_structured_data=True,
+            ):
+                return True
+        return False
+
+    async def _try_playwright_home_svg(
+        self,
+        state: ScrapeState,
+        company_name: str,
+    ) -> bool:
+        """Render page; take first SVG inside header/nav home <a>; convert via data URI."""
+        try:
+            from playwright.sync_api import sync_playwright  # noqa: F401
+        except ImportError:
+            self.log("[A3] Playwright not installed — skip home SVG", level="warning")
+            return False
+
+        def _collect() -> Optional[str]:
+            from playwright.sync_api import sync_playwright as _sp
+
+            pw = _sp().start()
+            try:
+                browser = pw.chromium.launch(headless=True)
+                page = browser.new_page(user_agent=DEFAULT_HEADERS["User-Agent"])
+                page.goto(
+                    state.website_url,
+                    wait_until="domcontentloaded",
+                    timeout=TIMEOUTS["page_load_ms"],
+                )
+                extra_ms = int(LOGO_CONFIG.get("playwright_extra_wait_ms", 0) or 0)
+                svg_extra = int(LOGO_CONFIG.get("logo_svg_home_extra_wait_ms", 0) or 0)
+                page.wait_for_timeout(
+                    TIMEOUTS["page_render_wait_ms"] + extra_ms + svg_extra
+                )
+                svg_html = page.evaluate(_PLAYWRIGHT_HOME_SVG_JS)
+                browser.close()
+                if svg_html and len(str(svg_html)) >= 200:
+                    return str(svg_html)
+                return None
+            finally:
+                pw.stop()
+
+        try:
+            svg_html = await asyncio.to_thread(_collect)
+        except Exception as e:
+            self.log(f"[A3] Home SVG Playwright failed: {e}", level="warning")
+            return False
+
+        if not svg_html:
+            self.log("[A3] No inline SVG in home link")
+            return False
+
+        svg_b64 = base64.b64encode(svg_html.encode("utf-8")).decode("ascii")
+        data_uri = f"data:image/svg+xml;base64,{svg_b64}"
+        self.log(f"[A3] Home-link SVG captured ({len(svg_html)} chars)")
+        return await self._try_download(data_uri, state, company_name)
+
     # ------------------------------------------------------------------
     # Download, validate, save
     # ------------------------------------------------------------------
@@ -287,14 +782,18 @@ class LogoAgent(BaseAgent):
         state: ScrapeState,
         company_name: str,
         timeout: Optional[int] = None,
+        *,
+        relaxed_structured_data: bool = False,
     ) -> bool:
         """Download *logo_url*, validate, save. Returns True on success."""
+        self._last_download_reason = None
         dl_result = await asyncio.to_thread(
             self._download_logo,
             logo_url,
             state.scrape_id,
             company_name,
             timeout or TIMEOUTS["logo_download"],
+            relaxed_structured_data,
         )
         if dl_result.get("success"):
             state.logo_url = dl_result.get("original_url") or dl_result.get("url")
@@ -304,6 +803,7 @@ class LogoAgent(BaseAgent):
             self.log(f"Logo saved: {state.logo_url}")
             return True
         else:
+            self._last_download_reason = str(dl_result.get("reason", "unknown"))
             self.log(f"Rejected: {dl_result.get('reason', 'unknown')}")
             return False
 
@@ -313,6 +813,7 @@ class LogoAgent(BaseAgent):
         scrape_id: str,
         company_name: str,
         timeout: int = 15,
+        relaxed_structured_data: bool = False,
     ) -> Dict[str, Any]:
         """Download, validate, and save logo. Runs in a thread."""
         try:
@@ -355,7 +856,10 @@ class LogoAgent(BaseAgent):
                     return {"success": False, "reason": "SVG->PNG conversion failed"}
 
             # ── Validate ──────────────────────────────────────────────
-            validation = validate_logo_image(content_bytes)
+            validation = validate_logo_image(
+                content_bytes,
+                relaxed_structured_data=relaxed_structured_data,
+            )
             if not validation["valid"]:
                 return {"success": False, "reason": f"Validation failed: {validation['reason']}"}
             logger.info(f"[LOGO] Validated: {validation.get('width', '?')}x{validation.get('height', '?')}px")
@@ -492,31 +996,150 @@ class LogoAgent(BaseAgent):
             self.log("Playwright not installed, skipping")
             return False
 
-        def _render_page() -> str:
+        def _render_page() -> Tuple[str, List[Dict[str, Any]]]:
             from playwright.sync_api import sync_playwright as _sp
 
+            extra_candidates: List[Dict[str, Any]] = []
             pw = _sp().start()
             try:
                 browser = pw.chromium.launch(headless=True)
                 page = browser.new_page(user_agent=DEFAULT_HEADERS["User-Agent"])
+                aggressive = LOGO_CONFIG.get("playwright_aggressive_render", False)
+                if aggressive:
+                    wait_until = str(
+                        LOGO_CONFIG.get("playwright_wait_until", "networkidle")
+                        or "networkidle"
+                    )
+                    extra_ms = max(
+                        int(LOGO_CONFIG.get("playwright_extra_wait_ms", 0) or 0),
+                        2000,
+                    )
+                else:
+                    wait_until = "domcontentloaded"
+                    extra_ms = int(LOGO_CONFIG.get("playwright_extra_wait_ms", 0) or 0)
+
                 page.goto(
                     state.website_url,
-                    wait_until="domcontentloaded",
+                    wait_until=wait_until,
                     timeout=TIMEOUTS["page_load_ms"],
                 )
-                page.wait_for_timeout(TIMEOUTS["page_render_wait_ms"])
+                if LOGO_CONFIG.get("playwright_wait_for_logo_selectors", True):
+                    for sel in (
+                        "header img",
+                        ".logo img",
+                        "[class*='logo'] img",
+                        "nav img",
+                    ):
+                        try:
+                            page.wait_for_selector(sel, timeout=3000)
+                            break
+                        except Exception:
+                            continue
+
+                page.wait_for_timeout(TIMEOUTS["page_render_wait_ms"] + extra_ms)
+
+                if LOGO_CONFIG.get("playwright_extract_computed_background", True):
+                    try:
+                        raw_urls = page.evaluate(
+                            """
+                            () => {
+                              function parseBgUrl(bg) {
+                                if (!bg || bg === 'none') return null;
+                                const i = bg.indexOf('url(');
+                                if (i < 0) return null;
+                                let rest = bg.slice(i + 4).trim();
+                                let u = '';
+                                if (rest[0] === '"' || rest[0] === "'") {
+                                  const q = rest[0];
+                                  const end = rest.indexOf(q, 1);
+                                  if (end > 0) u = rest.slice(1, end);
+                                } else {
+                                  const end = rest.indexOf(')');
+                                  if (end > 0) u = rest.slice(0, end).trim();
+                                }
+                                return u && !u.startsWith('data:') ? u : null;
+                              }
+                              const selectors = [
+                                '.main_logo', '.navbar-brand',
+                                '.logo', '#logo', '.site-logo', '.brand-logo',
+                                '.header-logo',
+                                'header a[href="/"]', 'nav a[href="/"]',
+                                "[class*='logo']"
+                              ];
+                              const urls = [];
+                              const seen = new Set();
+                              for (const sel of selectors) {
+                                try {
+                                  document.querySelectorAll(sel).forEach(el => {
+                                    const bg = getComputedStyle(el).backgroundImage;
+                                    const u = parseBgUrl(bg);
+                                    if (u && !seen.has(u)) { seen.add(u); urls.push(u); }
+                                  });
+                                } catch (e) {}
+                              }
+                              return urls;
+                            }
+                            """
+                        )
+                        for u in raw_urls or []:
+                            if not u or str(u).startswith("data:"):
+                                continue
+                            abs_u = make_absolute_url(str(u).strip(), base_url)
+                            extra_candidates.append({
+                                "src": abs_u,
+                                "alt": "logo",
+                                "class": "computed-bg",
+                                "in_header": True,
+                                "is_home_link": False,
+                                "is_first_in_nav": False,
+                                "priority_selector": True,
+                                "ancestor_href": None,
+                                "width": None,
+                                "height": None,
+                            })
+                    except Exception:
+                        pass
+
+                if LOGO_CONFIG.get("playwright_header_media_extras", True):
+                    try:
+                        raw_media = page.evaluate(_PLAYWRIGHT_HEADER_MEDIA_JS)
+                        for u in raw_media or []:
+                            if not u or str(u).startswith("data:"):
+                                continue
+                            abs_u = make_absolute_url(str(u).strip(), base_url)
+                            extra_candidates.append({
+                                "src": abs_u,
+                                "alt": "logo",
+                                "class": "header-media",
+                                "in_header": True,
+                                "is_home_link": False,
+                                "is_first_in_nav": False,
+                                "priority_selector": True,
+                                "ancestor_href": None,
+                                "width": None,
+                                "height": None,
+                            })
+                    except Exception:
+                        pass
+
                 html = page.content()
                 browser.close()
-                return html
+                return html, extra_candidates
             finally:
                 pw.stop()
 
         try:
-            rendered_html = await asyncio.to_thread(_render_page)
+            rendered_html, extra_pw = await asyncio.to_thread(_render_page)
             soup = BeautifulSoup(rendered_html, "html.parser")
 
             # Extract logo candidates from rendered DOM using priority selectors
             pw_candidates = self._extract_logo_candidates_from_soup(soup, base_url)
+            seen_src = {c["src"] for c in pw_candidates}
+            for c in extra_pw:
+                if c["src"] not in seen_src:
+                    seen_src.add(c["src"])
+                    pw_candidates.append(c)
+
             if not pw_candidates:
                 self.log("Playwright: no candidates found")
                 return False
@@ -555,21 +1178,6 @@ class LogoAgent(BaseAgent):
         candidates: List[Dict[str, Any]] = []
         seen: set = set()
 
-        # Pre-compute "Trusted by / Clients / Partners" sections to exclude
-        _TRUSTED_KW = {"trusted", "client", "partner", "as seen", "featured in",
-                       "our clients", "our partners", "brands we", "companies we",
-                       "they trust", "work with", "associated"}
-        _client_ids: set = set()
-        for section in soup.find_all(["section", "div", "aside"]):
-            heading = section.find(["h1", "h2", "h3", "h4", "h5", "h6", "p", "span"])
-            if heading:
-                heading_text = heading.get_text(strip=True).lower()
-                if any(kw in heading_text for kw in _TRUSTED_KW):
-                    _client_ids.add(id(section))
-                    for child in section.descendants:
-                        if hasattr(child, 'name'):
-                            _client_ids.add(id(child))
-
         priority_selectors = [
             ".logo img", "#logo img",
             ".site-logo img", ".brand-logo img",
@@ -579,9 +1187,7 @@ class LogoAgent(BaseAgent):
             f"header a[href='/'] img", f"nav a[href='/'] img",
             ".header__logo img", ".c-header__logo img",
             "[class*='logo'] img", "[id*='logo'] img",
-            "img[class*='logo']", "img[alt='logo']",  # img itself has logo class/alt
             "[aria-label*='logo' i] img",
-            "footer img[alt*='logo' i]",  # footer logos (common placement)
         ]
 
         for sel in priority_selectors:
@@ -715,8 +1321,9 @@ class LogoAgent(BaseAgent):
         # ── CSS background-image extraction on logo containers ───────────
         _BG_RE = re.compile(r'background(?:-image)?\s*:\s*url\(["\']?([^"\')\s]+)', re.IGNORECASE)
         bg_selectors = [
+            ".main_logo", ".navbar-brand",
             ".logo", "#logo", ".site-logo", ".brand-logo",
-            ".navbar-brand", ".header-logo", "[class*='logo']",
+            ".header-logo", "[class*='logo']",
             "header a[href='/']", "nav a[href='/']",
         ]
         for sel in bg_selectors:
@@ -752,23 +1359,6 @@ class LogoAgent(BaseAgent):
                     })
             except Exception:
                 continue
-
-        # Tag candidates inside "Trusted by / Clients" sections
-        _client_srcs: set = set()
-        for section_id in _client_ids:
-            # Find original elements by id match (already tracked)
-            pass
-        # Simpler: collect all image srcs inside client sections directly
-        for section in soup.find_all(["section", "div", "aside"]):
-            if id(section) in _client_ids:
-                for img_tag in section.find_all("img"):
-                    s = self._get_img_src(img_tag)
-                    if s:
-                        _client_srcs.add(make_absolute_url(s, base_url))
-                # Also check SVG data URIs (rare but possible)
-
-        for c in candidates:
-            c["in_client_section"] = c["src"] in _client_srcs
 
         return candidates
 
@@ -845,7 +1435,6 @@ class LogoAgent(BaseAgent):
                     temperature=0,
                 ),
             )
-            self.track_usage(response, "logo_web_search", state)
 
             resp_text = ""
             if response and response.candidates:

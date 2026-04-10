@@ -48,7 +48,7 @@ class ScrapeState:
     nav_links: List[Dict[str, Any]] = field(default_factory=list)
     pw_screenshot: Optional[bytes] = None
     pw_computed_colors: list = field(default_factory=list)
-    pw_computed_fonts: list = field(default_factory=list)  # [{family, usage, source}] from rendered DOM
+    pw_computed_fonts: list = field(default_factory=list)  # [{family, usage, source}] from Playwright JS
     structured_data: List[Dict[str, Any]] = field(default_factory=list)  # JSON-LD
     og_data: Dict[str, str] = field(default_factory=dict)
     favicon_url: Optional[str] = None
@@ -78,8 +78,10 @@ class ScrapeState:
     logo_ready: asyncio.Event = field(default_factory=asyncio.Event)
 
     # ── VisualAgent outputs ───────────────────────────────────────────────
-    primary_color: Optional[List[str]] = None  # Brand palette: logo colors + dominant website color
+    primary_color: Optional[List[str]] = None  # [primary, secondary, accent, background, text]
     secondary_color: Optional[str] = None       # Deprecated — always None
+    brand_palette: Optional[Dict[str, str]] = None  # {primary, secondary, accent, background, text}
+    color_audit: Optional[Dict[str, Any]] = None  # resolve_brand_palette audit + candidates (persisted)
     headline_text_color: Optional[str] = None
     headline_font: Optional[str] = None
     body_font: Optional[str] = None
@@ -107,11 +109,6 @@ class ScrapeState:
 
     # ── Metadata ──────────────────────────────────────────────────────────
     scrape_status: str = "success"
-    fail_reason: str = ""
     data_source: str = "hybrid"
     data_gaps: List[str] = field(default_factory=list)
     company_name: str = ""  # resolved name (from Gemini or hint or domain)
-
-    # ── LLM Usage Tracking ──────────────────────────────────────────────
-    # Each entry: {"call": "agent.method", "prompt_tokens": N, "output_tokens": N, "total_tokens": N}
-    llm_calls: List[Dict[str, Any]] = field(default_factory=list)

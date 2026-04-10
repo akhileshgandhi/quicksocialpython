@@ -69,19 +69,3 @@ class BaseAgent(ABC):
     def log(self, msg: str, level: str = "info") -> None:
         tag = f"[{self.__class__.__name__}]"
         getattr(logger, level, logger.info)(f"{tag} {msg}")
-
-    def track_usage(self, response: Any, call_name: str, state: ScrapeState) -> None:
-        """Capture Gemini token usage from *response* and append to state.llm_calls."""
-        usage = getattr(response, "usage_metadata", None)
-        if not usage:
-            return
-        prompt_tokens = getattr(usage, "prompt_token_count", 0) or 0
-        output_tokens = getattr(usage, "candidates_token_count", 0) or 0
-        entry = {
-            "call": f"{self.__class__.__name__}.{call_name}",
-            "prompt_tokens": prompt_tokens,
-            "output_tokens": output_tokens,
-            "total_tokens": prompt_tokens + output_tokens,
-        }
-        state.llm_calls.append(entry)
-        self.log(f"tokens: prompt={prompt_tokens} output={output_tokens} [{call_name}]")
