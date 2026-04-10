@@ -1,31 +1,41 @@
 """
-Prompt Enhancer — takes a rough user idea and generates 3 ready-to-use creative directions
-for QuikSocial's AI marketing post generator.
-
-User picks one option and its scene_description is passed directly as:
-  - custom_prompt → /create-campaign-advanced
-  - custom_prompt → /smart-post
+Prompt Enhancer — takes a rough user idea + reference images, post objective,
+platform, and variant count, then generates N detailed visual scene options.
+User picks one and feeds it as image_prompt to /create-campaign-advanced or custom_prompt to /smart-post.
 """
+import base64
 import json
 import logging
 import time
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Form, HTTPException
+from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 
 from models import PromptEnhancerResponse, PromptOption
+from utils import download_reference_image, process_uploaded_reference_image
 
 logger = logging.getLogger("quicksocial.prompt_enhancer")
 
-# Posting goal → plain-English guidance injected into the system prompt
-_GOAL_GUIDANCE = {
-    "product_launch":   "The post is announcing a new product. Highlight novelty, excitement, and desire.",
-    "brand_awareness":  "The post builds brand recognition. Focus on brand story, values, and emotional connection.",
-    "promotion":        "The post drives a sale or offer. Communicate urgency, value, and clear benefit.",
-    "festival":         "The post celebrates a festival or event. Capture the festive spirit and cultural warmth.",
-    "engagement":       "The post sparks interaction. Use curiosity, relatability, or a bold visual hook.",
-    "carousel":         "This is for a multi-slide carousel. Each option should suggest a strong visual narrative thread that works across slides.",
-    "campaign":         "This is for a multi-post campaign. Each option should feel like a campaign concept that can produce 4-8 consistent images.",
+# Max reference images allowed per request
+_MAX_REFERENCE_IMAGES = 5
+
+# Post objective → creative direction hints for the prompt
+_OBJECTIVE_DIRECTIVES = {
+    "Promotional":      "Focus on product/service hero shots, offers, discounts, and compelling CTAs. Showcase value and urgency.",
+    "Engagement":       "Prioritise relatable, shareable, emotionally resonant visuals that invite comments and reactions. Think conversation starters.",
+    "Announcement":     "Create bold, attention-grabbing visuals for news, launches, or updates. Emphasise novelty and importance.",
+    "Brand Awareness":  "Design distinctive, memorable visuals that reinforce brand identity, colors, and values. Think billboard-level impact.",
+    "Festival/Event":   "Incorporate festive/event-specific motifs, cultural symbols, warm colors, and celebratory energy.",
+}
+
+# Platform → visual style hints
+_PLATFORM_HINTS = {
+    "instagram":  "Instagram favors bold visuals, vibrant colors, clean compositions, and 1:1 or 4:5 aspect ratios. Stories use 9:16.",
+    "facebook":   "Facebook images work best at 16:9 or 1:1. Slightly more informational — text overlays and context perform well.",
+    "linkedin":   "LinkedIn prefers polished, professional imagery. Corporate tones, clean typography, muted palettes. 16:9 landscape.",
+    "twitter":    "Twitter/X images should be punchy and instantly readable at small sizes. 16:9 landscape. Bold, high-contrast.",
+    "whatsapp":   "WhatsApp status images are viewed full-screen on mobile — 9:16 vertical, vivid, minimal text, personal feel.",
+    "youtube":    "YouTube thumbnails need extreme contrast, expressive faces, large text, 16:9 landscape.",
 }
 
 
@@ -34,189 +44,296 @@ def create_prompt_enhancer_router(gemini_client, gemini_model):
 
     @router.post("/enhance-prompt", response_model=PromptEnhancerResponse)
     async def enhance_prompt(
-        user_prompt: str = Form(..., description="Your rough idea — can be as vague as 'coffee shop morning vibes' or as specific as you like"),
-        company_name: Optional[str] = Form(None, description="Company / brand name"),
-        company_description: Optional[str] = Form(None, description="What the company does or sells (1-2 sentences)"),
-        brand_voice: Optional[str] = Form(None, description="Brand personality (e.g. 'luxury', 'playful', 'bold', 'minimal', 'corporate')"),
-        platform: Optional[str] = Form(None, description="Target platform: instagram, facebook, linkedin, twitter"),
-        posting_goal: Optional[str] = Form(None, description="What this post is for: product_launch, brand_awareness, promotion, festival, engagement, carousel, campaign"),
+        request: Request,
+        user_prompt: str = Form(..., description="Your rough idea for the image — can be as vague or detailed as you like"),
+        company_name: Optional[str] = Form(None, description="Company name for brand-relevant scenes"),
+        company_description: Optional[str] = Form(None, description="Brief company description for context"),
+        brand_voice: Optional[str] = Form(None, description="Brand voice/tone (e.g., 'luxury', 'playful', 'corporate')"),
+        # --- Post context ---
+        post_objective: Optional[str] = Form(None, description="Post objective: Promotional, Engagement, Announcement, Brand Awareness, Festival/Event"),
+        platforms: Optional[str] = Form(None, description="Comma-separated platforms: instagram,facebook,linkedin,twitter,whatsapp,youtube"),
+        # --- Reference image URLs ---
+        reference_image_url_1: Optional[str] = Form(None, description="Reference image 1 (URL)"),
+        reference_image_url_2: Optional[str] = Form(None, description="Reference image 2 (URL)"),
+        reference_image_url_3: Optional[str] = Form(None, description="Reference image 3 (URL)"),
+        reference_image_url_4: Optional[str] = Form(None, description="Reference image 4 (URL)"),
+        reference_image_url_5: Optional[str] = Form(None, description="Reference image 5 (URL)"),
     ):
         """
-        Transform a rough user idea into 3 distinct, ready-to-use creative directions
-        for QuikSocial's AI marketing post generator.
+        Analyze a rough user prompt and generate 3 distinct visual scene options.
 
-        Each option's `scene_description` is a concise, direct creative brief that can be
-        pasted directly as `image_prompt` into /create-campaign-advanced or
-        `custom_prompt` into /smart-post — no editing needed.
+        Each option is a detailed, production-ready image directive that can be
+        directly passed as `image_prompt` to /create-campaign-advanced or
+        `custom_prompt` to /smart-post.
+
+        Reference images can be provided via file upload (reference_image_1..5
+        as multipart files) or URL (reference_image_url_1..5). For each slot,
+        file upload takes priority over URL. Up to 5 total.
         """
         start_time = time.time()
 
+        variants = 3
+
+        # Parse platforms list
+        platform_list = []
+        if platforms and platforms.strip():
+            platform_list = [p.strip().lower() for p in platforms.split(",") if p.strip()]
+
+        # ── Extract file uploads from raw form (avoids FastAPI "null" string crash) ──
+        file_uploads = {}  # slot index → UploadFile
+        try:
+            form = await request.form()
+            for i in range(1, 6):
+                key = f"reference_image_{i}"
+                if key in form:
+                    val = form[key]
+                    if isinstance(val, UploadFile) and val.filename and val.size and val.size > 0:
+                        file_uploads[i] = val
+        except Exception:
+            pass
+
+        url_slots = {
+            1: reference_image_url_1, 2: reference_image_url_2, 3: reference_image_url_3,
+            4: reference_image_url_4, 5: reference_image_url_5,
+        }
+
+        # Each entry: (base64_data, mime_type, label)
+        resolved_refs: List[tuple] = []
+
+        for idx in range(1, 6):
+            if len(resolved_refs) >= _MAX_REFERENCE_IMAGES:
+                break
+
+            # Priority 1: File upload
+            if idx in file_uploads:
+                try:
+                    file_slot = file_uploads[idx]
+                    file_bytes = await file_slot.read()
+                    if file_bytes:
+                        result = process_uploaded_reference_image(file_bytes, file_slot.filename)
+                        if result and result.get("success"):
+                            resolved_refs.append((result["base64_data"], result["mime_type"], f"upload:{file_slot.filename}"))
+                            continue
+                except Exception as e:
+                    logger.warning(f"[ENHANCE] Ref image {idx} upload failed: {e}")
+
+            # Priority 2: URL download
+            url_slot = url_slots.get(idx)
+            if url_slot and url_slot.strip() and url_slot.strip().lower() not in ("null", "string", "undefined", ""):
+                try:
+                    result = download_reference_image(url_slot.strip())
+                    if result and result.get("success"):
+                        resolved_refs.append((result["base64_data"], result["mime_type"], f"url:{url_slot.strip()}"))
+                except Exception as e:
+                    logger.warning(f"[ENHANCE] Ref image {idx} URL download failed: {e}")
+
         logger.info("=" * 60)
-        logger.info(f"[ENHANCE] New request received")
+        logger.info("[ENHANCE] New request received")
         logger.info(f"[ENHANCE] User prompt: '{user_prompt}'")
         logger.info(f"[ENHANCE] Company: {company_name or '(none)'}")
-        logger.info(f"[ENHANCE] Description: {company_description[:80] + '...' if company_description and len(company_description) > 80 else company_description or '(none)'}")
-        logger.info(f"[ENHANCE] Brand voice: {brand_voice or '(none)'}")
-        logger.info(f"[ENHANCE] Platform: {platform or '(none)'}")
-        logger.info(f"[ENHANCE] Posting goal: {posting_goal or '(none)'}")
+        logger.info(f"[ENHANCE] Post objective: {post_objective or '(none)'}")
+        logger.info(f"[ENHANCE] Platforms: {platform_list or '(none)'}")
+        logger.info(f"[ENHANCE] Reference images: {len(resolved_refs)}")
+        for ref_b64, ref_mime, ref_label in resolved_refs:
+            logger.info(f"[ENHANCE]   -> {ref_label} ({ref_mime})")
 
-        # ── Brand context block ──────────────────────────────────────────────
+        # ── Build Gemini contents (multimodal: images + text) ──────────
+        contents = []
+
+        # Add reference images first (so Gemini sees them before the prompt)
+        for ref_b64, ref_mime, _ in resolved_refs:
+            contents.append({
+                "inline_data": {
+                    "mime_type": ref_mime,
+                    "data": ref_b64,
+                }
+            })
+
+        ref_count = len(resolved_refs)
+        if ref_count > 0:
+            contents.append(
+                f"REFERENCE IMAGES: I've provided {ref_count} reference image(s) above. "
+                "Use them as visual inspiration — match their color palette, mood, composition style, "
+                "or subject matter where relevant. Do NOT describe these images literally; instead, "
+                "let them influence the creative direction of your scene options."
+            )
+
+        # ── Build brand context ──────────────────────────────────────
         brand_section = ""
         if company_name or company_description or brand_voice:
             parts = []
             if company_name:
-                parts.append(f"Brand: {company_name}")
+                parts.append(f"Company: {company_name}")
             if company_description:
-                parts.append(f"What they do: {company_description[:200]}")
+                parts.append(f"Industry/Description: {company_description[:200]}")
             if brand_voice:
-                parts.append(f"Brand personality: {brand_voice}")
-            brand_section = "\n\nBRAND CONTEXT:\n" + "\n".join(parts)
-            logger.info(f"[ENHANCE] Brand context injected: {len(parts)} fields")
-        else:
-            logger.info("[ENHANCE] No brand context — generating generic directions")
+                parts.append(f"Brand Voice: {brand_voice}")
+            brand_section = f"""
+BRAND CONTEXT (tailor scenes to this brand):
+{chr(10).join(parts)}
+"""
 
-        # ── Platform context ─────────────────────────────────────────────────
+        # ── Build objective section ──────────────────────────────────
+        objective_section = ""
+        if post_objective and post_objective.strip():
+            directive = _OBJECTIVE_DIRECTIVES.get(post_objective.strip(), "")
+            objective_section = f"""
+POST OBJECTIVE: {post_objective}
+Creative direction: {directive}
+Every option MUST serve this objective — the visuals should clearly support "{post_objective}" goals.
+"""
+
+        # ── Build platform section ───────────────────────────────────
         platform_section = ""
-        if platform:
-            platform_hints = {
-                "instagram": "Instagram — aspirational, visually stunning, lifestyle-driven. Square or portrait format.",
-                "facebook":  "Facebook — relatable, community-focused, slightly longer narrative visuals.",
-                "linkedin":  "LinkedIn — professional, achievement-oriented, clean and credible.",
-                "twitter":   "Twitter/X — bold, punchy, high-contrast visuals that read at a glance.",
-            }
-            hint = platform_hints.get(platform.lower(), platform)
-            platform_section = f"\n\nTARGET PLATFORM: {hint}"
+        if platform_list:
+            hints = []
+            for p in platform_list:
+                hint = _PLATFORM_HINTS.get(p)
+                if hint:
+                    hints.append(f"  - {p.title()}: {hint}")
+            if hints:
+                platform_section = f"""
+TARGET PLATFORMS:
+{chr(10).join(hints)}
+Consider these platform-specific visual conventions when designing each scene. If multiple platforms are listed, optimize for the FIRST one but ensure the scenes work across all.
+"""
 
-        # ── Posting goal context ─────────────────────────────────────────────
-        goal_section = ""
-        if posting_goal:
-            guidance = _GOAL_GUIDANCE.get(posting_goal.lower(), f"Goal: {posting_goal}")
-            goal_section = f"\n\nPOSTING GOAL: {guidance}"
+        # ── Build variety instructions based on variant count ────────
+        variety_block = """Generate exactly 3 visual options. ALL 3 must be faithful to the user's original idea — they are ENHANCEMENTS of the same concept, NOT different concepts. Vary the camera angle, lighting, composition, and setting, but the core subject/message must remain what the user described.
 
-        prompt = f"""You are a Senior Creative Director at a world-class advertising agency — the caliber of Wieden+Kennedy, Ogilvy, BBDO, or Droga5. You specialize in writing visual creative briefs for AI-powered marketing post generation.
+VARIETY GUIDELINES:
+- Option 1: The most direct, polished version of exactly what the user described — elevated with professional-grade detail
+- Option 2: Same core idea, different visual angle — e.g., different camera perspective, framing, or environment while keeping the same subject and message
+- Option 3: Same core idea, different mood/atmosphere — e.g., different lighting, time of day, or emotional tone while keeping the same subject and message"""
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-HOW YOUR OUTPUT IS USED — READ THIS FIRST
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The scene_description you write will be injected as the "CREATIVE BRIEF" inside a
-Gemini image generation prompt. That prompt already contains:
-  ✓ Company name, brand voice, and brand colors
-  ✓ Product/service name, description, features, and benefits
-  ✓ Posting goal and emotional tone
-  ✓ Target platform and format (1080×1350 portrait)
-  ✓ Logo placement instructions
-  ✓ Typography design rules
+        # ── Assemble final prompt ────────────────────────────────────
+        prompt = f"""You are an elite creative director at a top advertising agency. A client has described their vision for a marketing image. Your job is to ENHANCE their idea into 3 production-ready visual scene directions.
 
-So your brief must NOT repeat any of the above. It must ONLY supply what the system
-cannot derive on its own: the specific VISUAL CONCEPT — the scene, composition,
-lighting treatment, visual style, and the emotional story of the image.
+IMPORTANT: The user's idea is the foundation — you are ENHANCING it, not replacing it. Every option must clearly reflect what the user asked for. If they said "coffee shop scene", all 3 options must be coffee shop scenes. If they said "product on a table", all 3 must show the product on a table. You are adding professional detail, not changing the concept.
 
-Your output is what makes the difference between a generic AI post and a campaign-quality image.
+USER'S IDEA (this is what ALL options must be based on):
+"{user_prompt}"
+{brand_section}{objective_section}{platform_section}{"REFERENCE IMAGES were provided above — use them as visual inspiration while staying true to the user's idea." if ref_count > 0 else ""}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-USER'S BRIEF:
-"{user_prompt}"{brand_section}{platform_section}{goal_section}
+────────────────────────────────────────
+INTENT PRESERVATION FRAMEWORK (MANDATORY)
+────────────────────────────────────────
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 1 — IDENTIFY THE INDUSTRY
-Before writing, determine what industry this is. Then apply its proven visual language:
-  • F&B / Restaurants → texture-first, steam, condensation, overhead flat-lays, moody ambiance, cross-sections
-  • Fashion / Apparel → editorial framing, fabric texture close-ups, hard shadow contrast, runway or street energy
-  • Technology / SaaS → human hands on devices, glowing interfaces in dark environments, sharp geometry, clean negative space
-  • Healthcare / Wellness → soft wrap light, clinical whites, human connection, nature metaphors, calm and trust
-  • Finance / Professional Services → confidence-radiating portraits, architectural precision, premium materials, city backdrops
-  • Real Estate / Interior → natural window flood, lifestyle staging, wide angles, aspirational space and light
-  • Beauty / Skincare → macro textures, water droplets on skin, diverse skin tones, soft studio wrap, product on surface
-  • Fitness / Sports → motion freeze or blur, explosive body language, sweat and effort, dramatic light from below or behind
-  • Education / E-learning → screen-lit faces, breakthrough expressions, collaborative spaces, diverse learners
-  • Retail / E-commerce → desire-inducing isolation shots, lifestyle in-use, unboxing moments, seasonal texture and light
-  • Automotive → low camera angle, motion context, material close-ups, dramatic environment (rain, city night, open road)
-  • Food & Beverage (CPG) → hero product with appetite appeal, styled props, backlit liquids, surface texture contrast
+Step 1 — Extract Core Intent from the user's prompt:
+- SUBJECT: What is being promoted? (product, service, platform, event, offer, etc.)
+- ACTION: What does it do or what is happening? (e.g., generates posts, sells products, enables booking)
+- CONTEXT: Where/how is it happening? (scene, environment, setting)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 2 — WRITE 3 CREATIVE DIRECTIONS
+Step 2 — Visual Grounding (NON-NEGOTIABLE):
+Every generated scene MUST visually represent BOTH:
+1. The SUBJECT (what is being promoted)
+2. The ACTION (what it does)
 
-Each scene_description is a 4-5 sentence creative brief written as a direct instruction
-to the Gemini image generation model. Structure each as:
+These must be visible in the scene — NOT implied.
 
-  S1 — THE VISUAL CONCEPT: What is the scene? What is the central subject, action, or
-       moment? Be specific and concrete — name exact objects, settings, materials, and
-       what is happening. Not "a product shot" but "a single matte black bottle resting
-       on a rough-hewn slate surface, moisture beading on its shoulder from the cold."
+────────────────────────────────────────
+VISUALIZATION RULES
+────────────────────────────────────────
 
-  S2 — COMPOSITION & CAMERA: Camera height and angle. Where the subject sits in the
-       frame. How much negative space, and on which side (for text overlay). Depth of
-       field intention. Tight/wide. Rule of thirds or center lock.
+If SUBJECT is digital (app, platform, AI, software):
+→ Show it ON SCREEN (laptop, phone, UI, dashboards)
 
-  S3 — ENVIRONMENT & SUPPORTING ELEMENTS: What surfaces, props, and background
-       elements build the world around the subject? Every noun must be specific.
-       Not "a table" but "a weathered teak surface with grain lines running left to right."
+If SUBJECT is physical (product, clothing, food, etc.):
+→ Show the product clearly as the focal point
 
-  S4 — LIGHT & COLOR: Light source (window / studio / practicals / natural), direction
-       (45-degree from upper left / backlit / overhead), quality (hard/soft/diffused),
-       color temperature (warm tungsten / cool daylight / golden hour), dominant palette,
-       and how shadows behave. This sentence determines the entire emotional register.
+If SUBJECT is a service:
+→ Show the service being performed or experienced
 
-  S5 — VISUAL STYLE + EMOTIONAL PAYOFF: Name a visual style reference (a photographer,
-       campaign, or publication aesthetic). Then state what the viewer feels and desires —
-       the marketing payoff. This is the last thing the model reads; make it land.
+If SUBJECT is abstract (AI, growth, automation):
+→ Represent it via UI, transformation, data flow, or visible output
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-THE 3 TERRITORIES — must be genuinely different creative strategies, not variations:
+────────────────────────────────────────
+ACTION VISIBILITY RULE
+────────────────────────────────────────
 
-  OPTION 1 — DESIRE ARCHITECTURE
-  Elevate the product or service to an art object. Every compositional and lighting
-  decision exists to make the viewer want to possess it, taste it, wear it, or use it.
-  The product or its direct promise IS the entire world of the image.
-  Tone: aspirational, precise, seductive. Think Apple, Rolex, Chanel, Aesop, Supreme.
+The core ACTION must be visually understandable.
 
-  OPTION 2 — AUTHENTIC HUMAN TRUTH
-  A specific, unguarded human moment — not a pose, not a model smiling at the camera.
-  A behavioral truth the target audience recognizes as their own life. The product may be
-  present or implied, but the human moment is the reason to stop scrolling.
-  Tone: warm, real, intimate. Think Dove, Airbnb, Patagonia, Nike "Just Do It", Spotify.
+BAD:
+"A team working in an office"
 
-  OPTION 3 — BRAND MYTHOLOGY
-  The aspirational world this brand lives in — no product required. Just the environment,
-  the texture, the energy, the culture. The viewer wants to belong here.
-  Tone: cinematic, bold, world-building. Think Red Bull, Louis Vuitton, Tesla, Patagonia wilderness.
+GOOD:
+"A team working on laptops where the platform is actively generating outputs visible on their screens"
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-QUALITY RULES — enforce on every option:
-  ✗ No vague words: beautiful, amazing, stunning, nice, great, perfect, wonderful, sleek
-  ✗ No mention of logos, fonts, colors, or text overlays (pipeline handles this)
-  ✗ No generic nouns — every object must be specific and material
-  ✗ No more than 5 sentences
-  ✗ No overlap between options — different scene, different light, different emotional register
-  ✓ Leave compositional space (one side of frame) for text/logo overlay
-  ✓ Apply the industry visual language identified in Step 1
-  ✓ Consider cultural relevance if the brand context suggests a specific market
+────────────────────────────────────────
+SCENE BALANCE RULE
+────────────────────────────────────────
 
-EXAMPLE scene_description (artisan brand — for reference only, do NOT copy):
-"A master glassblower in his early 50s, forearms darkened with carbon, holds a glowing amber gather on an iron pipe at the precise moment it begins to elongate — liquid fire obeying gravity and breath. Shot from waist height at a slight upward angle, the subject anchors the left two-thirds of the frame; the right third is open dark air with no competing elements, space held for a headline. The workshop floor is raw concrete dusted with ash, iron hooks suspended from timber joists above, a distant furnace portal casting a deep orange glow through iron bars behind him. The scene is lit almost entirely by the gather itself — fierce 2700K center cooling to deep amber at the edges, hard shadows raking across his knuckles and jaw. Photographed in the style of Eugene Smith's industrial documentary intimacy — the viewer understands immediately that some things are still made by human hands, and that is precisely the point."
+- Preserve the user's described scene
+- Integrate SUBJECT + ACTION into that scene
+- Scene supports the idea, not replaces it
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+────────────────────────────────────────
+FAIL CONDITION (STRICT)
+────────────────────────────────────────
+
+If someone sees the image and cannot answer:
+"What is this post promoting?"
+
+→ The output is INVALID
+
+────────────────────────────────────────
+VARIETY GUIDELINES
+────────────────────────────────────────
+
+Generate exactly 3 visual options. ALL 3 must be faithful to the user's original idea — they are ENHANCEMENTS of the same concept.
+
+- Option 1: Direct, polished version of the user's idea
+- Option 2: Same idea, different composition/camera angle
+- Option 3: Same idea, different mood/lighting/atmosphere
+
+────────────────────────────────────────
+CRITICAL COLOR RULE
+────────────────────────────────────────
+
+Do NOT specify any exact colors or color names.
+Describe only lighting and tonal qualities (e.g., "warm lighting", "high contrast", "soft shadows")
+
+────────────────────────────────────────
+SCENE DESCRIPTION REQUIREMENTS
+────────────────────────────────────────
+
+Each scene_description MUST include:
+
+- WHAT is being promoted (clearly visible)
+- HOW it works or what it does (visually represented)
+- WHERE it is happening (scene)
+- WHO is interacting (if applicable)
+- WHAT is visible on screen/product (MANDATORY for digital products)
+
+The product/service MUST be visible — NOT implied.
+
+────────────────────────────────────────
+OUTPUT FORMAT
+────────────────────────────────────────
+
+For each option provide:
+- title: A short, evocative label (3-6 words)
+- scene_description: A detailed, vivid description (2-4 sentences)
+- mood: Emotional atmosphere (1 sentence)
+- style: Photography/visual style (1 sentence)
+
 RESPOND WITH VALID JSON ONLY:
 {{
     "options": [
         {{
-            "title": "3-6 word campaign concept name",
-            "scene_description": "S1 visual concept. S2 composition and camera. S3 environment and props. S4 light and color. S5 visual style reference and emotional payoff."
-        }},
-        {{
-            "title": "3-6 word campaign concept name",
-            "scene_description": "Human truth version — 5 sentences across the 5 structure points."
-        }},
-        {{
-            "title": "3-6 word campaign concept name",
-            "scene_description": "Brand mythology version — 5 sentences across the 5 structure points."
+            "title": "Short Evocative Title",
+            "scene_description": "Detailed visual description...",
+            "mood": "Emotional atmosphere...",
+            "style": "Photography approach..."
         }}
     ]
 }}
 
 NO markdown, NO explanation, ONLY the JSON object."""
 
-        logger.info(f"[ENHANCE] Prompt built — {len(prompt)} chars, sending to Gemini ({gemini_model})...")
+        contents.append(prompt)
+
+        logger.info(f"[ENHANCE] Prompt built — {len(prompt)} chars, {ref_count} ref images, sending to Gemini ({gemini_model})...")
 
         try:
             from google.genai import types
@@ -224,16 +341,16 @@ NO markdown, NO explanation, ONLY the JSON object."""
             gemini_start = time.time()
             response = await gemini_client.aio.models.generate_content(
                 model=gemini_model,
-                contents=prompt,
+                contents=contents,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    temperature=1.0,
+                    temperature=0.9,
                 ),
             )
             gemini_elapsed = time.time() - gemini_start
             logger.info(f"[ENHANCE] Gemini responded in {gemini_elapsed:.2f}s")
 
-            # Bulletproof text extraction (same pattern as utils.py)
+            # Bulletproof text extraction
             response_text = None
             if hasattr(response, "text") and response.text:
                 response_text = response.text.strip()
@@ -247,7 +364,6 @@ NO markdown, NO explanation, ONLY the JSON object."""
                                 break
 
             if not response_text:
-                # Check for blocked prompt
                 if hasattr(response, "prompt_feedback") and response.prompt_feedback:
                     logger.error(f"[ENHANCE] Prompt BLOCKED by safety filter: {response.prompt_feedback}")
                     raise HTTPException(status_code=422, detail="Prompt was blocked by safety filters — please rephrase your idea")
@@ -255,7 +371,6 @@ NO markdown, NO explanation, ONLY the JSON object."""
                 raise HTTPException(status_code=502, detail="AI returned empty response — please try again")
 
             logger.info(f"[ENHANCE] Raw response length: {len(response_text)} chars")
-            logger.debug(f"[ENHANCE] Raw response preview: {response_text[:300]}...")
 
             # Log token usage
             usage = getattr(response, "usage_metadata", None)
@@ -267,10 +382,8 @@ NO markdown, NO explanation, ONLY the JSON object."""
             # Clean markdown fences
             if "```json" in response_text:
                 response_text = response_text.split("```json")[1].split("```")[0].strip()
-                logger.debug("[ENHANCE] Stripped ```json markdown fences")
             elif "```" in response_text:
                 response_text = response_text.split("```")[1].split("```")[0].strip()
-                logger.debug("[ENHANCE] Stripped ``` markdown fences")
 
             # Extract JSON object
             if not response_text.startswith("{"):
@@ -278,33 +391,38 @@ NO markdown, NO explanation, ONLY the JSON object."""
                 end_idx = response_text.rfind("}") + 1
                 if start_idx != -1 and end_idx > start_idx:
                     response_text = response_text[start_idx:end_idx]
-                    logger.debug(f"[ENHANCE] Extracted JSON substring [{start_idx}:{end_idx}]")
 
             result = json.loads(response_text)
             options_raw = result.get("options", [])
-            logger.info(f"[ENHANCE] JSON parsed successfully — {len(options_raw)} options received")
+            logger.info(f"[ENHANCE] JSON parsed — {len(options_raw)} options received (requested {variants})")
 
             if not options_raw or len(options_raw) < 1:
                 logger.error(f"[ENHANCE] No options in parsed JSON. Keys: {list(result.keys())}")
                 raise ValueError("No options returned")
 
-            # Build validated options (take up to 3)
+            # Build validated options (take up to requested count)
             options = []
-            for idx, opt in enumerate(options_raw[:3]):
+            for idx, opt in enumerate(options_raw[:variants]):
                 title = opt.get("title", "Untitled Option")
                 scene = opt.get("scene_description", "")
+                mood = opt.get("mood", "")
+                style = opt.get("style", "")
                 logger.info(f"[ENHANCE]   Option {idx + 1}: \"{title}\" — {len(scene)} chars")
                 options.append(PromptOption(
                     title=title,
                     scene_description=scene,
+                    mood=mood,
+                    style=style,
                 ))
 
             total_elapsed = time.time() - start_time
-            logger.info(f"[ENHANCE] SUCCESS — {len(options)} options generated in {total_elapsed:.2f}s for: '{user_prompt[:60]}'")
+            logger.info(f"[ENHANCE] SUCCESS — {len(options)} options in {total_elapsed:.2f}s")
             logger.info("=" * 60)
 
             return PromptEnhancerResponse(
                 original_prompt=user_prompt,
+                post_objective=post_objective,
+                platforms=platform_list or None,
                 options=options,
             )
 

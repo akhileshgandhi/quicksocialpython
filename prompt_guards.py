@@ -21,6 +21,54 @@ Beyond these three rules: use your full creative intelligence. Write powerful, b
 """
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# LOGO FIDELITY GUARD
+# Injected into every image generation prompt that involves a logo
+# Purpose: Enforce pixel-perfect logo reproduction — zero color alteration,
+#          zero shape change, zero reinterpretation. Resize only.
+# Core insight: the logo is a FLAT 2D OVERLAY, not a scene object —
+#               it is immune to scene lighting, color grade, and ambient tint.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+LOGO_FIDELITY_GUARD = """
+▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+LOGO — BRAND IDENTITY. FATAL TO ALTER. ZERO EXCEPTIONS.
+▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+
+CRITICAL CONCEPT — READ AND COMMIT BEFORE PLACING THE LOGO:
+
+The logo is a FLAT 2D GRAPHIC ASSET. It does NOT exist inside the scene.
+It is NOT a physical object being photographed or rendered in 3D.
+It is NOT affected by the scene's lighting, shadows, or color grade.
+Treat it exactly like a logo printed on a finished poster —
+digitally composited ON TOP of the image AFTER the scene was created.
+
+The scene's warm glow, cool shadows, ambient tint, and color grade
+DO NOT reach the logo. The logo is completely immune to scene lighting. Ever.
+
+ONLY PERMITTED OPERATION: resize or scale the logo to fit its placement zone.
+
+EVERY OTHER OPERATION IS A CRITICAL FAILURE — zero exceptions:
+✗ Do NOT change any color in the logo — not even by 1%
+✗ Do NOT tint, warm, cool, desaturate, brighten, or darken any logo color
+✗ Do NOT apply scene lighting or ambient color to the logo — it is immune
+✗ Do NOT blend or harmonize the logo color with the scene background
+✗ Do NOT alter any font, letterform, weight, spacing, or icon inside the logo
+✗ Do NOT remove, add, reorder, or rearrange any element inside the logo
+✗ Do NOT crop, clip, or partially hide any part of the logo
+✗ Do NOT redraw the logo from memory — reproduce the provided reference exactly
+
+COLOR FIDELITY — mandatory final check before output:
+Look at the logo you rendered. Compare it to the provided reference.
+If the logo was red → it must be the exact same red. Not orange. Not pink. Not maroon.
+If the logo was blue → exact same blue. Not navy. Not sky. Not teal.
+If ANY color differs from the reference — correct it before output.
+
+PLACEMENT: Position the logo in a clean, uncluttered zone where it is 100% fully visible.
+The background behind the logo must be simple enough that the logo reads clearly.
+▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬
+"""
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # NEGATIVE PROMPT (AI ARTIFACT AVOIDANCE)
 # Injected into all IMAGE GENERATION prompts
 # Purpose: Eliminate common AI-generation failure patterns
@@ -50,6 +98,7 @@ ABSOLUTE VISUAL EXCLUSIONS (ALL MODES)
 - Unrealistic human poses — no floating, levitating, or gravity-defying body positions; people must stand, sit, or move in ways a real human physically can
 - Distorted product proportions — no abnormally elongated, stretched, or misshapen objects (e.g. impossibly tall cups, oversized screens, unnaturally long limbs); every object must match its real-world dimensions and look exactly as a human would expect it to
 - Logos, trademarks, or signature design marks belonging to ANY real brand other than the one specified in this brief — no Nike swoosh, no Adidas three stripes, no Jordan jumpman, no Puma cat, no Converse star, no New Balance "N", no Reebok vector, no Under Armour UA, no forward/backward swoosh sign, no any other real brand's IP on any product, surface, or background. All products must carry ONLY the identity of the brand in the payload. This is a hard creative and legal requirement.
+- URLs, website addresses, phone numbers, email addresses, QR codes, or any fine-print legal text — these do NOT belong on a marketing image. Never render www.anything, http, .com, .in, or any domain/contact detail anywhere on the canvas.
 
 REALITY ANCHOR — MANDATORY:
 This image must depict a scene that could exist in the real world and could have been photographed or professionally rendered by a human creative team on a real brief. If the scene could not exist physically or would not be commissioned by a real brand's marketing department, it is rejected.
@@ -69,6 +118,10 @@ TYPOGRAPHY_PRECISION = """
 ══════════════════════════════════════════════════════════════════
 TYPOGRAPHY PRECISION — PROFESSIONAL BRAND STANDARD (MANDATORY)
 ══════════════════════════════════════════════════════════════════
+
+▸ ZERO REPETITION — THE SINGLE MOST COMMON FAILURE. READ THIS FIRST.
+✗ Do NOT repeat any word within the same line — "Honor the Journey Journey" is a failure.
+✗ Do NOT print any line, sentence, or text block more than once anywhere in the image — if it appears once, it must not appear again anywhere else on the canvas. One occurrence only. Ever.
 
 ▸ SPELLING — THE ONE HARD RULE. OVERRIDES ALL OTHER DECISIONS.
 - Every word must be spelled using correct, standard dictionary English. No exceptions. Ever.
@@ -107,7 +160,9 @@ The single most common failure is text that looks stamped on top of an otherwise
 - SHADOW & DEPTH: Apply a subtle, directional shadow that matches the scene's light source direction and color temperature. The shadow anchors the text to the surface it sits on — it does not float above. A warm scene gets a warm shadow. A cool studio shot gets a cool, tight shadow. Never a generic black drop shadow.
 - PLACEMENT: Position the text in a zone that was compositionally planned for it — negative space, a dark corner, a deliberate gradient zone, or a surface that invites text. The image must look like it was shot/rendered to accommodate this text, not that the text was placed afterward.
 - BACKGROUND TREATMENT: If the background behind the text is complex, apply a subtle treatment — a frosted zone, a soft vignette, a refined semi-transparent panel — that feels like a design decision, not a readability hack. The treatment must use the image's own tones and colors.
-- SCALE & WEIGHT: Text size and weight must feel proportionate to the full canvas. Line 1 commands the space. Line 2 settles beneath it with clear but harmonious contrast. Neither line should feel too small to matter or too large to breathe.
+- SCALE & WEIGHT: Text size and weight must feel proportionate to the full canvas. The typographic hierarchy — whether one dominant line, two contrasting weights, or a kinetic arrangement — must feel intentional and proportioned to the visual. No line should feel too small to matter or too large to breathe.
+- CANVAS BOUNDARY — ABSOLUTE RULE: Every character of every text element MUST be fully contained within the image frame. No letter, word, or partial line may be clipped or cut off at any canvas edge (left, right, top, or bottom). If a headline is too long to fit at the desired size, reduce the font size or break it into two lines until all text fits with clear margin on all sides. A word cut off at the edge is an unconditional publishing failure.
+- SAFE ZONE — MANDATORY: Treat the outer 8% of the canvas on all four sides as a hard no-text zone. All text — headline, subline, logo, any copy — must sit entirely within the inner 84% of the canvas. The bottom edge is the highest risk: the lowest text element must have at least 8% of the canvas height as clear margin below it. Images are cropped during platform processing and any text outside the safe zone will be lost.
 - RESULT TEST: Cover the text with your hand and look at the image. Uncover it. The text should feel like it was always part of the design — compositionally inevitable, not an afterthought.
 """
 

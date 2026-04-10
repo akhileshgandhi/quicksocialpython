@@ -30,8 +30,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable is not set. Check your .env file.")
 client = genai.Client(api_key=GEMINI_API_KEY)
-# model = "gemini-2.5-flash"
-model = "gemini-2.5-flash-lite"
+model = "gemini-3.1-flash-lite-preview"
+# model = "gemini-2.5-flash-lite"
 image_model = "gemini-3.1-flash-image-preview"
 
 # Storage
@@ -48,9 +48,15 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_origin_regex=(
+        r"https?://(localhost|127\.0\.0\.1)(:\d+)?"          # local dev
+        r"|https://[a-z0-9\-]+\.[a-z0-9\-]+\.devtunnels\.ms" # devtunnel (any region)
+        r"|https://[a-z0-9\-]+\.devtunnels\.ms"              # devtunnel (short form)
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 app.mount("/images", StaticFiles(directory=str(STORAGE_DIR)), name="images")

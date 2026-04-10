@@ -20,6 +20,74 @@ from prompt_guards import CAPTION_ENRICHMENT_DIRECTIVE
 logger = logging.getLogger(__name__)
 
 
+def build_brand_payload(
+    primary_color: str,
+    secondary_color: str,
+    accent_color: Optional[str] = None,
+    primary_font: Optional[str] = None,
+    secondary_font: Optional[str] = None,
+    accent_font: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Normalize the 3-color brand hierarchy and 3-font style hierarchy into prompt-ready text blocks.
+
+    The generation flow stays unchanged; this only replaces the old free-form
+    brand_colors string with explicit role-based color guidance, and adds font guidance.
+    """
+    primary = (primary_color or "").strip()
+    secondary = (secondary_color or "").strip()
+    accent = (accent_color or "").strip() or None
+
+    if not primary or not secondary:
+        raise ValueError("primary_color and secondary_color are required")
+
+    summary = f"Primary: {primary} | Secondary: {secondary}"
+    if accent:
+        summary += f" | Accent: {accent}"
+
+    prompt_block = (
+        f"Primary Color: {primary} — main background/base. This is the dominant design color used for backgrounds, large surfaces, lighting atmosphere, and the overall visual feel.\n"
+        f"Secondary Color: {secondary} — supporting elements. Use it to structure the design through supporting surfaces, cards, dividers, layout sections, and compositional balance.\n"
+        + (
+            f"Accent Color: {accent} — highlight/attention color. Use it sparingly for call-to-action emphasis, offers, discounts, key words, focal details, and other high-attention moments.\n"
+            if accent else
+            "Accent Color: none provided — create emphasis through composition, typography, and restrained contrast between the primary and secondary colors.\n"
+        )
+        + "COLOR HIERARCHY RULE: Do NOT treat all colors equally. Primary must dominate, secondary must support, and accent must be used sparingly only for emphasis. Do NOT render color swatches, palette chips, or hex-code labels anywhere in the image."
+    )
+
+    atmosphere_reference = (
+        f"the primary color {primary} as the main background/base, the secondary color {secondary} as the supporting structure"
+        + (f", and the accent color {accent} for highlight moments" if accent else "")
+    )
+
+    # Font payload
+    font_prompt_block = ""
+    if primary_font:
+        font_prompt_block += f"Primary Font: {primary_font} — Main Headline / Core Message. Use this font for the main headline or primary message. Make it large, bold, and highly prominent. Think: Title, Offer text, Brand message.\n"
+    if secondary_font:
+        font_prompt_block += f"Secondary Font: {secondary_font} — Supporting Content. Use this font for supporting text such as subheadings or descriptions. Keep it clean, readable, and balanced. Think: Subheading, Description, Details.\n"
+    if accent_font:
+        font_prompt_block += f"Accent Font: {accent_font} — Highlight / Attention. Use this font for call-to-action, highlights, or key phrases. Use it sparingly. Think: CTA ('Buy Now'), Discounts, Small highlight words.\n"
+    if font_prompt_block:
+        font_prompt_block += "Use the font names as typographic style guidance only. Do NOT render the font family names or any designer labels as visible text in the image.\n"
+    if not font_prompt_block:
+        font_prompt_block = "No specific fonts provided — choose typography that matches the brand voice and enhances readability."
+
+    return {
+        "primary_color": primary,
+        "secondary_color": secondary,
+        "accent_color": accent,
+        "primary_font": primary_font,
+        "secondary_font": secondary_font,
+        "accent_font": accent_font,
+        "summary": summary,
+        "prompt_block": prompt_block,
+        "atmosphere_reference": atmosphere_reference,
+        "font_prompt_block": font_prompt_block,
+    }
+
+
 # ===============================================================================
 # GEMINI HELPERS
 # ===============================================================================
@@ -210,47 +278,23 @@ def parse_service_skills(skills_data: list) -> List[ServiceSkill]:
 
 def resize_image_for_platform(image_bytes: bytes, target_width: int, target_height: int) -> bytes:
     """
-    Resize image to platform specifications using blur-fill letterbox.
+    Resize image to exact target dimensions using LANCZOS resampling.
 
-    Instead of center-cropping (which destroys content), this scales the original
-    image to fully fit within the target canvas and fills any remaining space with
-    a blurred version of the image. No content is ever lost.
+    No cropping. No letterboxing. Direct resize to target canvas.
 
-    Example: 1024x1024 square → 1200x628 Facebook
-      - Old: center-crop loses 44% of height
-      - New: scales to 628x628 centered on a blurred 1200x628 background
+    Why no crop: Gemini generates at 3:4 (nearest supported ratio to our 4:5 target).
+    Center-cropping to bridge that gap removes ~32px from the top and bottom of the
+    Gemini output, which slices off text placed near edges. The aspect ratio delta
+    (3:4 → 4:5) is only 6.7% — a direct resize produces imperceptible distortion
+    in a rich marketing image while guaranteeing every pixel Gemini rendered survives.
+
+    For 1:1 same-content posts the caller passes 1080×1080 so no distortion occurs there.
     """
     try:
         img = Image.open(BytesIO(image_bytes)).convert("RGB")
-        img_w, img_h = img.size
-        target_ratio = target_width / target_height
-        img_ratio = img_w / img_h
-
-        # If the ratios already match (within 3%), just resize directly — no padding needed
-        if abs(img_ratio - target_ratio) / target_ratio < 0.03:
-            resized = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
-            output = BytesIO()
-            resized.save(output, format='PNG', optimize=True)
-            return output.getvalue()
-
-        # ── Blur-fill letterbox ──────────────────────────────────────────────
-        # 1. Stretch original to fill the full canvas, then heavily blur it
-        background = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
-        background = background.filter(ImageFilter.GaussianBlur(radius=24))
-
-        # 2. Scale foreground to FIT within the canvas (no cropping)
-        scale = min(target_width / img_w, target_height / img_h)
-        fg_w = int(img_w * scale)
-        fg_h = int(img_h * scale)
-        foreground = img.resize((fg_w, fg_h), Image.Resampling.LANCZOS)
-
-        # 3. Center the sharp foreground on the blurred background
-        x_off = (target_width - fg_w) // 2
-        y_off = (target_height - fg_h) // 2
-        background.paste(foreground, (x_off, y_off))
-
+        resized = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
         output = BytesIO()
-        background.save(output, format='PNG', optimize=True)
+        resized.save(output, format='PNG', optimize=True)
         return output.getvalue()
 
     except Exception as e:
@@ -548,59 +592,63 @@ def build_product_image_context(
     if not reference_image or not reference_image.get("success"):
         return []
 
+    if item_type.lower() == "product":
+        usage_instruction = f"""
+═══════════════════════════════════════════════════════════════════════════════
+PRODUCT REFERENCE IMAGE — VISUAL ANCHOR
+═══════════════════════════════════════════════════════════════════════════════
+
+The image above shows the ACTUAL product: "{item_name}"
+
+PRODUCT INTEGRATION RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• This is the exact product that must appear in your generated image
+• Preserve its real colors, shape, material finish, and proportions accurately
+• The viewer must be able to RECOGNISE this as the same product
+• Place it in an aspirational lifestyle context — the world it belongs to
+• Show it from its most compelling, desire-building angle
+• The product is the hero: it must occupy significant visual real estate
+• The scene around it should amplify its quality, not compete with it
+• Use the provided logo as it is without any color distortion.
+• Carefully designed the whole image where the object will be, where the text will be and what will be the color.
+
+═══════════════════════════════════════════════════════════════════════════════
+"""
+    else:
+        # Service — the reference image shows an environment, experience, or setting
+        usage_instruction = f"""
+═══════════════════════════════════════════════════════════════════════════════
+⚠ SERVICE REFERENCE IMAGE — THIS IS YOUR VISUAL ANCHOR ⚠
+═══════════════════════════════════════════════════════════════════════════════
+
+The image immediately above is the REAL environment/setting for: "{item_name}"
+
+CRITICAL INSTRUCTION — READ BEFORE GENERATING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Your generated image MUST be grounded in the environment shown in that reference photo.
+
+WHAT YOU MUST DO:
+• Reproduce the same space: architecture, floor, walls, ceiling, materials, furniture layout
+• Preserve the lighting character and color mood of the reference environment
+• You may add people, improve lighting dramatics, or heighten emotional atmosphere
+• The viewer should immediately recognise this as the same place shown in the reference
+
+WHAT YOU MUST NOT DO:
+✗ Do NOT invent a completely different environment
+✗ Do NOT swap the reference scene for a generic or hallucinated alternative
+✗ Do NOT ignore the reference image — it is mandatory visual input, not optional
+
+═══════════════════════════════════════════════════════════════════════════════
+"""
+
     return [
         {
             "inline_data": {
                 "mime_type": reference_image["mime_type"],
-                "data": reference_image["base64_data"]
+                "data": reference_image["image_bytes"]   # raw bytes — SDK requires bytes, NOT base64 string
             }
         },
-        f"""
-═══════════════════════════════════════════════════════════════════════════════
-🖼️ PRODUCT REFERENCE IMAGE - CRITICAL VISUAL GUIDE
-═══════════════════════════════════════════════════════════════════════════════
-
-The image above is the ACTUAL {item_type.upper()}: "{item_name}"
-
-IMPORTANT INSTRUCTIONS FOR IMAGE GENERATION:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. VISUAL ACCURACY (CRITICAL):
-   • Study this reference image carefully - this is the REAL product
-   • Maintain accurate colors, shapes, and proportions
-   • The generated image should make viewers RECOGNIZE this exact product
-   • DO NOT create a generic/different looking product
-
-2. PRODUCT SHOWCASE APPROACH:
-   • Feature the product prominently as the hero element
-   • Use professional product photography lighting techniques
-   • Create depth and dimension that highlights product quality
-   • Show the product from its most appealing angle
-
-3. MARKETING CONTEXT:
-   • Place the product in an aspirational lifestyle context
-   • Add subtle environmental elements that enhance appeal
-   • Create emotional connection through visual storytelling
-   • Ensure the product looks premium and desirable
-
-4. QUALITY STANDARDS:
-   • Generate photorealistic, high-quality marketing imagery
-   • Ensure crisp details and professional composition
-   • The output should look like a premium advertising campaign
-   • Match or exceed the quality of the reference image
-
-5. BRAND INTEGRATION:
-   • Seamlessly incorporate any provided logo
-   • Maintain consistent brand colors and aesthetics
-   • Balance product focus with brand messaging
-
-6. COMPOSITION RULES (CRITICAL):
-   • Render marketing text as designed typographic elements — bold headline, clean subline.
-   • Balance the product hero with the text placement — text should not obscure the product.
-   • Focus on product, environment, and integrated brand messaging.
-
-═══════════════════════════════════════════════════════════════════════════════
-"""
+        usage_instruction
     ]
 
 
@@ -671,25 +719,10 @@ PART 1 — CAPTION REQUIREMENTS:
 8. All hashtags lowercase with # prefix
 9. Use all the provided information effectively
 
-PART 2 — DISPLAY TEXT FOR IMAGE (CRITICAL):
-Generate impactful marketing text that will be rendered ON the marketing image.
-This is a TEXT-HEAVY marketing image!
-Format: HEADLINE | SUBLINE | KEY FEATURE (use | as separator)
-Rules:
-- HEADLINE: 3-6 impactful words — a compelling hook or brand statement (NOT just the product name alone)
-- SUBLINE: 5-12 words — clearly explain WHAT the product/service does or its key benefit so a reader instantly understands the offering
-- KEY FEATURE: 3-8 words — one standout feature, price point, CTA, or unique selling point
-- The reader should understand the company/product/service just from reading the image text
-- Do NOT just repeat the product name — add context, value, or emotion
-- Must be grammatically PERFECT — zero errors
-- Must be SEMANTICALLY ALIGNED with the caption
-- Think like a professional brand poster: headline grabs attention, subline informs clearly, feature convinces to act
-
 RESPOND WITH VALID JSON ONLY:
 {{
     "caption": "Your engaging caption here with emojis if appropriate for the platform...",
-    "hashtags": ["#hashtag1", "#hashtag2", "#hashtag3"],
-    "display_text": "HEADLINE | SUBLINE | KEY FEATURE"
+    "hashtags": ["#hashtag1", "#hashtag2", "#hashtag3"]
 }}
 
 NO markdown, NO explanation, ONLY the JSON object.

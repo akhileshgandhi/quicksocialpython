@@ -20,6 +20,7 @@ from models import (
 from utils import (
     extract_gemini_text, log_gemini_usage,
     download_reference_image, process_uploaded_reference_image,
+    resize_image_for_platform, build_brand_payload,
 )
 from prompt_guards import (
     NEGATIVE_PROMPT,
@@ -27,6 +28,7 @@ from prompt_guards import (
     TYPOGRAPHY_PRECISION,
     REALISM_STANDARD,
     SPELLING_PRIORITY_PREAMBLE,
+    LOGO_FIDELITY_GUARD,
 )
 
 logger = logging.getLogger(__name__)
@@ -392,6 +394,7 @@ def _select_carousel_arc(posting_goal: str, brand_voice: str, company_descriptio
 
 def create_smartpost_router(gemini_client, gemini_model, image_model, storage_dir):
     router = APIRouter(tags=["Smart Post"])
+    _HEARTBEAT_INTERVAL_SECONDS = 8
 
     # ─── In-memory job store for WebSocket progress streaming ────────────────
     # Structure: { job_id: { status, queue } }
@@ -417,6 +420,32 @@ def create_smartpost_router(gemini_client, gemini_model, image_model, storage_di
         except Exception:
             pass
         return None
+
+    async def _smartpost_heartbeat(queue: asyncio.Queue, stop_event: asyncio.Event) -> None:
+        """Emit periodic keepalive messages so the frontend sees activity during long model calls."""
+        try:
+            while not stop_event.is_set():
+                await asyncio.sleep(_HEARTBEAT_INTERVAL_SECONDS)
+                if stop_event.is_set():
+                    break
+                await queue.put({
+                    "step": "heartbeat",
+                    "message": "Gemini is still processing your smart post. Please keep this window open.",
+                })
+        except asyncio.CancelledError:
+            raise
+
+    async def _stop_background_task(task: Optional[asyncio.Task], stop_event: Optional[asyncio.Event] = None) -> None:
+        """Signal and await helper tasks cleanly."""
+        if stop_event is not None:
+            stop_event.set()
+        if not task:
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
     def _ordinal(n: int) -> str:
         suffix = {1: "st", 2: "nd", 3: "rd"}.get(n if n < 20 else n % 10, "th")
@@ -798,7 +827,7 @@ RESPOND WITH VALID JSON ONLY (no markdown):
     # visual_contract (binding design rules) + per-slide briefs + caption.
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _build_fallback_plan(company_name, tagline, brand_colors, slide_roles, slide_count):
+    def _build_fallback_plan(company_name, tagline, color_payload, slide_roles, slide_count):
         """Minimal deterministic fallback if the planner API call fails."""
         slides = []
         for i, role in enumerate(slide_roles[:slide_count]):
@@ -806,16 +835,16 @@ RESPOND WITH VALID JSON ONLY (no markdown):
                 "slide_number": i + 1,
                 "role": role,
                 "visual_concept": f"Professional marketing image for {company_name} — {role.lower().replace('_', ' ')} beat",
-                "composition_note": "Central composition with brand colors dominant throughout",
+                "composition_note": "Central composition with the primary brand color dominant and the secondary color structuring the design",
                 "typography_direction": f"Brand statement for {company_name} — clear, confident, {tagline or 'value-driven'}. Line 1: brand name or core promise — short and punchy. Line 2: key benefit or supporting statement — clear and complete.",
                 "transition_note": "FINAL" if i == slide_count - 1 else "Continue the visual theme",
             })
         return {
             "visual_contract": {
                 "composition_grid": "Central subject, text always in lower third",
-                "color_temperature": "Match brand palette exactly",
+                "color_temperature": f"Primary color {color_payload['primary_color']} leads, secondary color {color_payload['secondary_color']} supports, accent is used sparingly",
                 "typography_zone": "Lower third — consistent across all slides",
-                "graphic_motif": "Brand color accent line above headline",
+                "graphic_motif": "Accent color detail above headline",
                 "logo_position": "Bottom-right corner on every slide",
                 "render_style": "photorealistic",
             },
@@ -829,7 +858,7 @@ RESPOND WITH VALID JSON ONLY (no markdown):
         company_description: str,
         tagline: str,
         brand_voice: str,
-        brand_colors: str,
+        color_payload: dict,
         posting_goal_str: str,
         goal_context: dict,
         creative_brief: str,
@@ -871,7 +900,8 @@ Company: {company_name}
 Description: {(company_description or 'Professional brand')[:280]}
 Tagline: "{tagline or '—'}"
 Brand Voice: {brand_voice or 'Professional and trustworthy'}
-Brand Colors: {brand_colors or 'Industry-appropriate palette'}
+Brand Color Hierarchy:
+{color_payload["prompt_block"]}
 {f"Tone: {', '.join(tone_attributes_list)}" if tone_attributes_list else ""}
 {f"Writing Style: {writing_style}" if writing_style else ""}
 
@@ -970,7 +1000,7 @@ Respond with VALID JSON only — no markdown fences:
 
         except Exception as e:
             logger.error(f"   [PLANNER] Failed ({e}) — using fallback plan")
-            return _build_fallback_plan(company_name, tagline, brand_colors, slide_roles, slide_count)
+            return _build_fallback_plan(company_name, tagline, color_payload, slide_roles, slide_count)
 
     # ─────────────────────────────────────────────────────────────────────────
     # INTERNAL IMPL — called by the endpoint in both normal and SSE modes.
@@ -983,7 +1013,9 @@ Respond with VALID JSON only — no markdown fences:
         logo_bytes: Optional[bytes],
         tagline: Optional[str],
         brand_voice: Optional[str],
-        brand_colors: Optional[str],
+        primary_color: str,
+        secondary_color: str,
+        accent_color: Optional[str],
         tone_attributes: Optional[str],
         writing_style: Optional[str],
         posting_goal: PostingGoal,
@@ -993,6 +1025,9 @@ Respond with VALID JSON only — no markdown fences:
         target_platform: Optional[str],
         reference_image_data: Optional[dict],
         queue: asyncio.Queue,
+        primary_font: Optional[str] = None,
+        secondary_font: Optional[str] = None,
+        accent_font: Optional[str] = None,
         # Product fields
         product_name: Optional[str] = None,
         product_description: Optional[str] = None,
@@ -1028,6 +1063,8 @@ Respond with VALID JSON only — no markdown fences:
                 "step": "started",
                 "message": f"Generating smart post for {company_name}",
             })
+            heartbeat_stop = asyncio.Event()
+            heartbeat_task = asyncio.create_task(_smartpost_heartbeat(queue, heartbeat_stop))
 
             # ═══════════════════════════════════════════════════════════════
             # PARSE BRAND VOICE PARAMETERS (comma-separated strings → lists)
@@ -1042,6 +1079,14 @@ Respond with VALID JSON only — no markdown fences:
 
             # Get goal context for prompts
             goal_context = _get_posting_goal_context(posting_goal)
+            color_payload = build_brand_payload(
+                primary_color=primary_color,
+                secondary_color=secondary_color,
+                accent_color=accent_color,
+                primary_font=primary_font,
+                secondary_font=secondary_font,
+                accent_font=accent_font,
+            )
 
             # ═══════════════════════════════════════════════════════════════
             # FESTIVAL CONTEXT (for Festival/Event posting goal)
@@ -1124,7 +1169,7 @@ Respond with VALID JSON only — no markdown fences:
                     company_description=company_description,
                     tagline=tagline,
                     brand_voice=brand_voice,
-                    brand_colors=brand_colors,
+                    color_payload=color_payload,
                     posting_goal_str=posting_goal.value,
                     goal_context=goal_context,
                     creative_brief=_creative_brief,
@@ -1228,11 +1273,10 @@ COLORS — use culturally authentic palette: {colors_line}
                 logger.info(f"\n   [SLIDE {img_num}/{num_images}] Role: {role}")
 
                 effective_voice  = brand_voice or 'Professional yet approachable'
-                effective_colors = brand_colors or 'Modern, appealing brand colors'
-                _font_style      = _get_smartpost_font_style(effective_voice)
+                effective_colors = color_payload["summary"]
                 _logo_instr      = (
-                    "Integrate the brand logo (provided in this request) as a natural design element — designed in, not pasted on. Surroundings harmonize with logo colors. PIXEL-PERFECT: do NOT alter logo colors, fonts, shapes, or styling — resize only."
-                    if logo_bytes else "No logo — do not invent any brand mark."
+                    f"The brand logo is provided in this request.\n{LOGO_FIDELITY_GUARD}"
+                    if logo_bytes else "No logo — do NOT invent, draw, or hallucinate any brand mark anywhere in the image."
                 )
 
                 # Visual contract block (binds all slides)
@@ -1273,9 +1317,9 @@ Both lines sit together in one pre-planned typographic zone. Plan the zone befor
 ✗ Do NOT place the headline top and the subline at the bottom — this is the most common failure mode
 ✗ Do NOT echo or repeat any text element elsewhere in the frame
 ✗ Do NOT render the labels "Line 1", "Line 2", "Headline", or "Subline" — render the actual copy only
+✗ Do NOT render font style names, font family names, or designer labels as visible copy anywhere in the image.
 
-Font: {_font_style}
-Text color drawn from this slide's palette — harmonize with {effective_colors}. Directional shadow matching this slide's light source.
+Text color drawn from this slide's palette — harmonize with the brand color hierarchy led by {color_payload["primary_color"]}. Directional shadow matching this slide's light source.
 {TYPOGRAPHY_PRECISION}
 
 {"TRANSITION → " + trans if not is_final else "FINAL SLIDE — Make this the most memorable. Leave a lasting impression."}"""
@@ -1288,7 +1332,10 @@ BRAND PAYLOAD
 Company: {company_name}
 Tagline: "{tagline or '—'}"
 Brand Voice: {effective_voice}
-Brand Colors: {effective_colors}
+Brand Color Hierarchy:
+{color_payload["prompt_block"]}
+Brand Font Hierarchy:
+{color_payload["font_prompt_block"]}
 Profile: {(company_description or 'Professional brand')[:250]}
 {f"Tone: {', '.join(tone_attributes_list)}" if tone_attributes_list else ""}
 
@@ -1313,42 +1360,63 @@ ABSOLUTE PROHIBITIONS
 {"✓ Logo: integrate naturally, surroundings harmonize with logo colors" if logo_bytes else "✗ Do NOT invent any logo or brand mark"}
 """
                 try:
-                    contents = [image_prompt]
+                    from google.genai import types as _types
+                    _parts = []
+                    
+                    # Start with the main prompt
+                    _parts.append(_types.Part(text=image_prompt))
 
                     # Logo injection FIRST — must be the first image Gemini sees so it anchors as the locked identity asset
                     if logo_bytes:
                         _lm = "image/jpeg" if logo_bytes[:3] == b'\xff\xd8\xff' else "image/png"
-                        contents.append({"inline_data": {"mime_type": _lm, "data": base64.b64encode(logo_bytes).decode("utf-8")}})
-                        contents.append("LOGO REFERENCE: This is the exact brand logo — treat it as a LOCKED, PIXEL-PERFECT asset. ABSOLUTELY DO NOT change any logo colors, fonts, shapes, icons, or styling. Every color must appear exactly as shown here. The only allowed operation is resizing/scaling. No recoloring, no reinterpreting, no redesigning — ever.")
+                        _parts.append(_types.Part(
+                            inline_data=_types.Blob(mime_type=_lm, data=logo_bytes)
+                        ))
+                        _parts.append(_types.Part(text=(
+                            "THIS IMAGE IS THE BRAND LOGO — MEMORISE ITS EXACT COLORS RIGHT NOW.\n"
+                            "THE LOGO IS A FLAT 2D ASSET. It is NOT inside the scene. It is NOT lit by the scene's light.\n"
+                            "It sits ON TOP of the finished image — like a logo on a printed poster. Scene lighting does not touch it.\n"
+                            "ONLY ALLOWED: resize or scale. Everything else is a critical failure:\n"
+                            "✗ Any color change — even 1% shift in hue, saturation, or brightness\n"
+                            "✗ Tinting or warming the logo to match the scene light — the most common mistake, absolutely forbidden\n"
+                            "✗ Any font, shape, icon, spacing, or element change inside the logo\n"
+                            "✗ Cropping or clipping any part of the logo\n"
+                            "FINAL CHECK: The logo in your output must look identical to this reference image, just resized."
+                        )))
 
                     # Previous slide → visual continuity reference (comes AFTER logo so logo identity wins over style continuity)
                     if prev_slide_bytes is not None:
                         _pm = "image/jpeg" if prev_slide_bytes[:3] == b'\xff\xd8\xff' else "image/png"
-                        contents.append({"inline_data": {"mime_type": _pm, "data": base64.b64encode(prev_slide_bytes).decode("utf-8")}})
-                        contents.append(f"VISUAL CONTINUITY REFERENCE: This is slide {img_num - 1} — use it for layout rhythm, color temperature, and visual grammar only. Do NOT copy the logo appearance from this slide — always use the locked logo provided above. Do not copy the layout — evolve it. The series must feel like one unified campaign.")
+                        _parts.append(_types.Part(
+                            inline_data=_types.Blob(mime_type=_pm, data=prev_slide_bytes)
+                        ))
+                        _parts.append(_types.Part(text=f"VISUAL CONTINUITY REFERENCE: This is slide {img_num - 1} — use it for layout rhythm, color temperature, and visual grammar only. Do NOT copy the logo appearance from this slide — always use the locked logo provided above. Do not copy the layout — evolve it. The series must feel like one unified campaign."))
 
                     # Reference subject — injected on every carousel slide so the subject appears consistently
                     if reference_image_data and reference_image_data.get("success"):
                         _ref_mime = reference_image_data.get("mime_type", "image/jpeg")
-                        _ref_b64  = reference_image_data.get("base64_data", "")
-                        _subject_label = custom_prompt or "the subject"
-                        contents.append({"inline_data": {"mime_type": _ref_mime, "data": _ref_b64}})
-                        contents.append(
-                            f"REFERENCE SUBJECT IMAGE — {_subject_label} must be the VISUAL HERO of this slide. "
-                            f"For people: faithfully reproduce their facial features, skin tone, hairstyle, and overall likeness — do NOT alter their appearance. "
-                            f"For products/objects: reproduce exact form, color, and design. "
-                            f"Feature them prominently — composition, colors, and brand elements must frame and celebrate this subject."
-                        )
-                        logger.info(f"   [SLIDE {img_num}] Reference subject injected: {_subject_label}")
+                        _ref_data = reference_image_data.get("image_bytes") or base64.b64decode(reference_image_data.get("base64_data", "")) if reference_image_data.get("base64_data") else None
+                        if _ref_data:
+                            _subject_label = custom_prompt or "the subject"
+                            _parts.append(_types.Part(
+                                inline_data=_types.Blob(mime_type=_ref_mime, data=_ref_data)
+                            ))
+                            _parts.append(_types.Part(text=(
+                                f"REFERENCE SUBJECT IMAGE — {_subject_label} must be the VISUAL HERO of this slide. "
+                                f"For people: faithfully reproduce their facial features, skin tone, hairstyle, and overall likeness — do NOT alter their appearance. "
+                                f"For products/objects: reproduce exact form, color, and design. "
+                                f"Feature them prominently — composition, colors, and brand elements must frame and celebrate this subject."
+                            )))
+                            logger.info(f"   [SLIDE {img_num}] Reference subject injected: {_subject_label}")
 
-                    from google.genai import types as _types
+                    contents = [_types.Content(role="user", parts=_parts)]
                     response = await gemini_client.aio.models.generate_content(
                         model=image_model,
                         contents=contents,
                         config=_types.GenerateContentConfig(
                             temperature=0.75,
                             response_modalities=["IMAGE"],
-                            image_config=_types.ImageConfig(aspect_ratio=platform_spec['gemini_aspect'])
+                            image_config=_types.ImageConfig(aspect_ratio="3:4")
                         )
                     )
                     usage = getattr(response, 'usage_metadata', None)
@@ -1368,6 +1436,7 @@ ABSOLUTE PROHIBITIONS
                             logger.error(f"   [SLIDE {img_num}] Feedback: {response.prompt_feedback}")
                         return None, None
 
+                    raw_bytes = resize_image_for_platform(raw_bytes, 1080, 1350)
                     save_result = _save_smart_post_image(
                         image_bytes=raw_bytes, post_id=post_id,
                         company_name=company_name, slide_number=img_num
@@ -1393,7 +1462,7 @@ ABSOLUTE PROHIBITIONS
                 Never repeats — temperature 0.85 guarantees fresh output every run.
                 """
                 _eff_voice   = brand_voice or 'Professional yet approachable'
-                _eff_colors  = brand_colors or 'Modern, on-brand colors'
+                _eff_colors  = color_payload["summary"]
                 _eff_tagline = tagline or ''
                 _eff_desc    = (company_description or '')[:300]
 
@@ -1446,7 +1515,8 @@ Task: Generate {n} creative direction(s) for a social media marketing image.
 BRAND BRIEF:
 Company: {company_name}
 Brand Voice: {_eff_voice}
-Brand Colors: {_eff_colors}
+Brand Color Hierarchy:
+{color_payload["prompt_block"]}
 Tagline: {_eff_tagline or '—'}
 Profile: {_eff_desc}
 Goal: {posting_goal.value}
@@ -1582,14 +1652,13 @@ Return ONLY a valid JSON array. No markdown fences, no explanation text. Exactly
                 effective_description = company_description or 'A professional business delivering excellence'
                 effective_tagline = tagline
                 effective_voice = brand_voice or 'Professional yet approachable'
-                effective_colors = brand_colors or 'Modern, appealing colors that match the brand'
+                effective_colors = color_payload["summary"]
 
                 _logo_instruction = (
-                    "Integrate the brand logo (shown above) as a natural design element — place it in a compositionally clean zone where it feels purposefully designed in, not pasted on. The surrounding area must harmonize with the logo's own colors and style. PIXEL-PERFECT LOGO REPRODUCTION: The logo is a locked identity asset — do NOT recolor, restyle, reinterpret, redesign, or alter ANY element (colors, fonts, shapes, icons, arrangement). Every color in the logo must appear exactly as provided. Only resize/scale the logo as needed for placement — absolutely no other changes."
-                    if logo_bytes else "No logo provided — do not invent or hallucinate any brand mark."
+                    f"The brand logo is provided above as a reference image.\n{LOGO_FIDELITY_GUARD}"
+                    if logo_bytes else "No logo provided — do NOT invent, draw, or hallucinate any brand mark, icon, or logo anywhere in the image."
                 )
                 _creative_brief = custom_prompt if custom_prompt else f"Create a compelling {posting_goal.value.lower()} post for {company_name} that reflects the brand identity and stops the scroll on {platform_spec['name']}."
-                _font_style = _get_smartpost_font_style(effective_voice)
 
                 # ── Asset detection (used for composite mode logic below) ──
                 _has_ref     = bool(reference_image_data and reference_image_data.get("success"))
@@ -1615,11 +1684,18 @@ Return ONLY a valid JSON array. No markdown fences, no explanation text. Exactly
                     )
                 else:
                     _visual_approach = _get_smartpost_visual_approach(posting_goal.value, effective_voice)
-                _color_ref = effective_colors
+                _color_ref = color_payload["atmosphere_reference"]
 
                 # Defaults — overridden in the else branch when variant briefs are used
                 _b_territory = posting_goal.value.replace("_", " ").title()
-                _b_payoff    = f"Experience the difference with {company_name}"
+                _default_payoffs = [
+                    f"Discover what makes {company_name} unique",
+                    f"See why {company_name} stands apart",
+                    f"Unlock the smarter choice with {company_name}",
+                    f"Make {company_name} your new standard of quality",
+                    f"Trust {company_name} for modern clarity and confidence"
+                ]
+                _b_payoff = _default_payoffs[(len(company_name or "") + img_num + len(brand_voice or "")) % len(_default_payoffs)]
                 _b_concept   = ""
                 _b_comp      = ""
                 _b_light     = ""
@@ -1705,7 +1781,10 @@ BRAND PAYLOAD
 Company: {company_name}
 Tagline: "{effective_tagline or '—'}"
 Brand Voice: {effective_voice}
-Brand Colors: {effective_colors} ⛔ USE these colors as scene atmosphere and design tone — do NOT render color swatches, hex codes, or color palette boxes anywhere in the image.
+Brand Color Hierarchy:
+{color_payload["prompt_block"]}
+Brand Font Hierarchy:
+{color_payload["font_prompt_block"]}
 Profile: {effective_description[:350]}
 {f"Tone: {', '.join(tone_attributes_list)}" if tone_attributes_list else ""}
 {f"Writing Style: {writing_style}" if writing_style else ""}
@@ -1718,7 +1797,7 @@ CREATIVE BRIEF — Your design direction
 Goal: {posting_goal.value.upper()} — {goal_context['focus']}
 Emotional Tone: {goal_context['tone']}
 Visual Elements: {goal_context['visual']}
-Platform: {platform_spec['name']} ({platform_spec['aspect_ratio']}) — {platform_spec['tone']}
+Platform: {platform_spec['name']} (4:5) — {platform_spec['tone']}
 {_variant_section}{festival_image_section}
 {f'''━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REFERENCE SUBJECT — VISUAL HERO OF THIS POST
@@ -1747,7 +1826,7 @@ YOUR DESIGN DECISIONS
 {_visual_approach}
 
 ▸ STEP 2 — COMPOSITION & ATMOSPHERE
-{_composite_mandate}Plan the focal point and spatial zones. The {_color_ref} is the emotional backbone of this image — dominant scene colors, lighting, materials, surfaces, and reflections MUST embody these brand colors. They must feel like they live IN the scene, not applied over it. Camera angle and depth of field reflect the brand's market tier and the creative brief's emotional direction.
+{_composite_mandate}Plan the focal point and spatial zones. The {_color_ref} is the emotional backbone of this image — dominant scene colors, lighting, materials, surfaces, and reflections MUST embody this color hierarchy. They must feel like they live IN the scene, not applied over it. Camera angle and depth of field reflect the brand's market tier and the creative brief's emotional direction.
 SPATIAL RULES — establish these before placing any element:
 — Every provided asset must be FULLY visible within frame — no cropping at canvas edges, intentional breathing space on all sides
 — Text zone: plan a dedicated text zone before arranging any visual element — it occupies a zone no asset occupies. The text zone is designed in from the start, not found in leftover space afterward.
@@ -1764,9 +1843,9 @@ Plan the text zone before placing any visual element. Commit to it. Both lines s
 ✗ Do NOT place the headline at the top and the subline at the bottom — this is the most common failure mode
 ✗ Do NOT repeat, echo, or shadow any text element anywhere else in the frame
 ✗ Do NOT render the labels "Line 1", "Line 2", "Headline", or "Subline" — render the actual copy only
+✗ Do NOT render font style names, font family names, or designer labels as visible copy anywhere in the image.
 
-Font: {_font_style}
-Text color drawn from this image's own palette — harmonize with {_color_ref}. Apply a directional shadow matching the scene's light source.
+Text color drawn from this image's own palette — harmonize with the brand color hierarchy led by {color_payload["primary_color"]}. Apply a directional shadow matching the scene's light source.
 {TYPOGRAPHY_PRECISION}
 
 ▸ STEP 4 — LOGO
@@ -1785,79 +1864,106 @@ EXECUTION STANDARD
 """
 
                 try:
-                    # Build content for Gemini
-                    contents = [image_prompt]
+                    # Build content for Gemini using proper types.Content structure
+                    from google.genai import types
+                    _parts = []
+                    
+                    # Main prompt
+                    _parts.append(types.Part(text=image_prompt))
 
                     # Logo injection — send actual logo for Gemini to place in image
                     if logo_bytes:
                         _logo_mime = "image/jpeg" if logo_bytes[:3] == b'\xff\xd8\xff' else "image/png"
-                        contents.append({"inline_data": {"mime_type": _logo_mime, "data": base64.b64encode(logo_bytes).decode("utf-8")}})
-                        contents.append("LOGO REFERENCE: This is the exact brand logo — treat it as a LOCKED, PIXEL-PERFECT asset. Integrate it into the composition so it feels designed in, not pasted on. ABSOLUTELY DO NOT change any logo colors, fonts, shapes, icons, or styling. Do not reinterpret or redesign any part of it. The only allowed operation is resizing/scaling. Every color in this logo must appear exactly as shown.")
+                        _parts.append(types.Part(
+                            inline_data=types.Blob(mime_type=_logo_mime, data=logo_bytes)
+                        ))
+                        _parts.append(types.Part(text=(
+                            "THIS IMAGE IS THE BRAND LOGO — MEMORISE ITS EXACT COLORS RIGHT NOW.\n"
+                            "THE LOGO IS A FLAT 2D ASSET. It is NOT inside the scene. It is NOT lit by the scene's light.\n"
+                            "It sits ON TOP of the finished image — like a logo on a printed poster. Scene lighting does not touch it.\n"
+                            "ONLY ALLOWED: resize or scale. Everything else is a critical failure:\n"
+                            "✗ Any color change — even 1% shift in hue, saturation, or brightness\n"
+                            "✗ Tinting or warming the logo to match the scene light — the most common mistake, absolutely forbidden\n"
+                            "✗ Any font, shape, icon, spacing, or element change inside the logo\n"
+                            "✗ Cropping or clipping any part of the logo\n"
+                            "FINAL CHECK: The logo in your output must look identical to this reference image, just resized."
+                        )))
 
                     # Reference subject injection — becomes the visual hero of the post
                     if reference_image_data and reference_image_data.get("success"):
                         _ref_mime = reference_image_data.get("mime_type", "image/jpeg")
-                        _ref_b64  = reference_image_data.get("base64_data", "")
-                        _subject_label = custom_prompt or "the subject"
-                        contents.append({"inline_data": {"mime_type": _ref_mime, "data": _ref_b64}})
-                        if _asset_count >= 2:
-                            contents.append(
-                                f"REFERENCE SUBJECT — EMOTIONAL CORE OF THE COMPOSITE: This is {_subject_label}. "
-                                f"Faithfully reproduce this subject in the final image — exact likeness for people (facial features, skin tone, hairstyle unchanged), exact form and color for objects. "
-                                f"This subject is ONE equal component of the composite alongside the product and service — NOT the sole hero. "
-                                f"Assign it a clear spatial zone within the composite layout. It must be fully within frame with breathing space on all sides."
-                            )
-                        else:
-                            contents.append(
-                                f"REFERENCE SUBJECT IMAGE — This is the actual photo of {_subject_label}. "
-                                f"This person/subject MUST be the VISUAL HERO of the generated image — featured prominently at the centre of the composition. "
-                                f"For people: faithfully reproduce their facial features, skin tone, hairstyle, and overall likeness. Do NOT alter their appearance, age, or identity. "
-                                f"For products/objects: reproduce exact form, color, and design with precision. "
-                                f"Frame them with brand colors, background, and typography that celebrate and elevate them. "
-                                f"This is NOT a style reference — the actual person/subject shown MUST appear in the final generated image."
-                            )
-                        logger.info(f"[REF_IMAGE] ✓ Reference subject injected: {_subject_label}")
+                        _ref_data = reference_image_data.get("image_bytes") or base64.b64decode(reference_image_data.get("base64_data", "")) if reference_image_data.get("base64_data") else None
+                        if _ref_data:
+                            _subject_label = custom_prompt or "the subject"
+                            _parts.append(types.Part(
+                                inline_data=types.Blob(mime_type=_ref_mime, data=_ref_data)
+                            ))
+                            if _asset_count >= 2:
+                                _parts.append(types.Part(text=(
+                                    f"REFERENCE SUBJECT — EMOTIONAL CORE OF THE COMPOSITE: This is {_subject_label}. "
+                                    f"Faithfully reproduce this subject in the final image — exact likeness for people (facial features, skin tone, hairstyle unchanged), exact form and color for objects. "
+                                    f"This subject is ONE equal component of the composite alongside the product and service — NOT the sole hero. "
+                                    f"Assign it a clear spatial zone within the composite layout. It must be fully within frame with breathing space on all sides."
+                                )))
+                            else:
+                                _parts.append(types.Part(text=(
+                                    f"REFERENCE SUBJECT IMAGE — This is the actual photo of {_subject_label}. "
+                                    f"This person/subject MUST be the VISUAL HERO of the generated image — featured prominently at the centre of the composition. "
+                                    f"For people: faithfully reproduce their facial features, skin tone, hairstyle, and overall likeness. Do NOT alter their appearance, age, or identity. "
+                                    f"For products/objects: reproduce exact form, color, and design with precision. "
+                                    f"Frame them with brand colors, background, and typography that celebrate and elevate them. "
+                                    f"This is NOT a style reference — the actual person/subject shown MUST appear in the final generated image."
+                                )))
+                            logger.info(f"[REF_IMAGE] ✓ Reference subject injected: {_subject_label}")
 
                     # Product image injection
                     if _has_product:
                         _p_mime = product_image_data.get("mime_type", "image/jpeg")
-                        _p_b64  = product_image_data.get("base64_data", "")
-                        contents.append({"inline_data": {"mime_type": _p_mime, "data": _p_b64}})
-                        if _asset_count >= 2:
-                            contents.append(
-                                f"PRODUCT ASSET — '{product_name or 'the product'}': This is the TANGIBLE ANCHOR of the composite. "
-                                f"Reproduce it with pixel accuracy — exact packaging, color, form, and design. "
-                                f"Position it as the most sharply focused element, fully within frame. "
-                                f"It is the thing the customer can buy and hold — make it irresistible."
-                            )
-                        else:
-                            contents.append(
-                                f"PRODUCT IMAGE — '{product_name or 'the product'}': Reproduce its exact form, color, texture, and design with precision. "
-                                f"Feature it as the visual hero of the composition — fully within frame, sharply rendered."
-                            )
-                        logger.info(f"[PRODUCT_IMAGE] ✓ Product image injected: {product_name}")
+                        _p_data = product_image_data.get("image_bytes") or base64.b64decode(product_image_data.get("base64_data", "")) if product_image_data.get("base64_data") else None
+                        if _p_data:
+                            _parts.append(types.Part(
+                                inline_data=types.Blob(mime_type=_p_mime, data=_p_data)
+                            ))
+                            if _asset_count >= 2:
+                                _parts.append(types.Part(text=(
+                                    f"PRODUCT ASSET — '{product_name or 'the product'}': This is the TANGIBLE ANCHOR of the composite. "
+                                    f"Reproduce it with pixel accuracy — exact packaging, color, form, and design. "
+                                    f"Position it as the most sharply focused element, fully within frame. "
+                                    f"It is the thing the customer can buy and hold — make it irresistible."
+                                )))
+                            else:
+                                _parts.append(types.Part(text=(
+                                    f"PRODUCT IMAGE — '{product_name or 'the product'}': Reproduce its exact form, color, texture, and design with precision. "
+                                    f"Feature it as the visual hero of the composition — fully within frame, sharply rendered."
+                                )))
+                            logger.info(f"[PRODUCT_IMAGE] ✓ Product image injected: {product_name}")
 
                     # Service image injection
                     if _has_service:
                         _s_mime = service_image_data.get("mime_type", "image/jpeg")
-                        _s_b64  = service_image_data.get("base64_data", "")
-                        contents.append({"inline_data": {"mime_type": _s_mime, "data": _s_b64}})
-                        if _asset_count >= 2:
-                            contents.append(
-                                f"SERVICE ASSET — '{service_name or 'the service'}': This is the EXPERIENTIAL LAYER of the composite. "
-                                f"Use this image to define the atmosphere, environment, or transformation the customer experiences. "
-                                f"It can occupy the background, a defined spatial zone, or be atmospherically blended into the scene — "
-                                f"but it must remain clearly visible and recognisable as the service offering."
-                            )
-                        else:
-                            contents.append(
-                                f"SERVICE IMAGE — '{service_name or 'the service'}': Use this to define the visual treatment, atmosphere, and context. "
-                                f"Feature it prominently as the experiential core of the composition."
-                            )
-                        logger.info(f"[SERVICE_IMAGE] ✓ Service image injected: {service_name}")
+                        _s_data = service_image_data.get("image_bytes") or base64.b64decode(service_image_data.get("base64_data", "")) if service_image_data.get("base64_data") else None
+                        if _s_data:
+                            _parts.append(types.Part(
+                                inline_data=types.Blob(mime_type=_s_mime, data=_s_data)
+                            ))
+                            if _asset_count >= 2:
+                                _parts.append(types.Part(text=(
+                                    f"SERVICE ASSET — '{service_name or 'the service'}': This is the EXPERIENTIAL LAYER of the composite. "
+                                    f"Use this image to define the atmosphere, environment, or transformation the customer experiences. "
+                                    f"It can occupy the background, a defined spatial zone, or be atmospherically blended into the scene — "
+                                    f"but it must remain clearly visible and recognisable as the service offering."
+                                )))
+                            else:
+                                _parts.append(types.Part(text=(
+                                    f"SERVICE IMAGE — '{service_name or 'the service'}': Use this to define the visual treatment, atmosphere, and context. "
+                                    f"Feature it prominently as the experiential core of the composition."
+                                )))
+                            logger.info(f"[SERVICE_IMAGE] ✓ Service image injected: {service_name}")
+
+                    # Create Content object with all parts
+                    contents = [types.Content(role="user", parts=_parts)]
 
                     # Generate image
-                    from google.genai import types
                     response = await gemini_client.aio.models.generate_content(
                         model=image_model,
                         contents=contents,
@@ -1865,7 +1971,7 @@ EXECUTION STANDARD
                             temperature=0.8,
                             response_modalities=["IMAGE"],
                             image_config=types.ImageConfig(
-                                aspect_ratio=platform_spec['gemini_aspect']
+                                aspect_ratio="3:4"
                             )
                         )
                     )
@@ -1911,6 +2017,9 @@ EXECUTION STANDARD
                     if not image_bytes:
                         logger.error(f"      [ERROR] No image data extracted for slide {img_num}")
                         return None
+
+                    # Resize to unified 1080x1350 before saving
+                    image_bytes = resize_image_for_platform(image_bytes, 1080, 1350)
 
                     # Save image
                     save_result = _save_smart_post_image(
@@ -2008,7 +2117,12 @@ EXECUTION STANDARD
                     "website": website,
                     "tagline": tagline,
                     "brand_voice": brand_voice,
-                    "brand_colors": brand_colors,
+                    "primary_color": color_payload["primary_color"],
+                    "secondary_color": color_payload["secondary_color"],
+                    "accent_color": color_payload["accent_color"],
+                    "primary_font": color_payload["primary_font"],
+                    "secondary_font": color_payload["secondary_font"],
+                    "accent_font": color_payload["accent_font"],
                     "target_platform": platform,
                     "custom_prompt": custom_prompt,
                     # Festival context (ensures image and caption alignment)
@@ -2083,7 +2197,7 @@ EXECUTION STANDARD
             logger.info(f"Output: {output_folder}")
             logger.info(f"{'=' * 70}")
 
-            return SmartPostResponse(
+            response_obj = SmartPostResponse(
                 post_id=post_id,
                 posting_goal=posting_goal.value,
                 content_mode=content_mode.value,
@@ -2093,7 +2207,9 @@ EXECUTION STANDARD
                 website=website,
                 tagline=tagline,
                 brand_voice=brand_voice,
-                brand_colors=brand_colors,
+                primary_color=color_payload["primary_color"],
+                secondary_color=color_payload["secondary_color"],
+                accent_color=color_payload["accent_color"],
                 images=generated_images,
                 captions=captions,
                 output_folder=output_folder,
@@ -2113,10 +2229,14 @@ EXECUTION STANDARD
                     "writing_style_used": writing_style is not None
                 }
             )
+            await _stop_background_task(heartbeat_task, heartbeat_stop)
+            return response_obj
 
         except HTTPException:
+            await _stop_background_task(heartbeat_task, heartbeat_stop)
             raise
         except Exception as e:
+            await _stop_background_task(heartbeat_task, heartbeat_stop)
             logger.error(f"[ERROR] Smart post generation failed: {e}")
             logger.error(traceback.format_exc())
             raise HTTPException(status_code=500, detail=f"Smart post generation failed: {str(e)}")
@@ -2131,7 +2251,12 @@ EXECUTION STANDARD
         logo_url: Optional[str] = Form(None, description="Public URL of company logo (PNG, JPG) — used when not uploading a file"),
         tagline: Optional[str] = Form(None, description="Company tagline/slogan"),
         brand_voice: Optional[str] = Form(None, description="Brand voice/tone (e.g., 'Professional', 'Friendly', 'Luxurious')"),
-        brand_colors: Optional[str] = Form(None, description="Brand colors (e.g., 'Blue and White', '#1E90FF, #FFFFFF')"),
+        primary_color: str = Form(..., description="Main background / base color. Used for backgrounds, big sections, and overall feel. Can be a color name or hex code."),
+        secondary_color: str = Form(..., description="Supporting color used for boxes, cards, layout parts, and dividers. Can be a color name or hex code."),
+        accent_color: Optional[str] = Form(None, description="Highlight / attention color for CTA emphasis, offers, discounts, and important words. Can be a color name or hex code."),
+        primary_font: Optional[str] = Form(None, description="Primary font for main headlines and core messages. Make it large, bold, and highly prominent."),
+        secondary_font: Optional[str] = Form(None, description="Secondary font for supporting content like subheadings or descriptions. Keep it clean, readable, and balanced."),
+        accent_font: Optional[str] = Form(None, description="Accent font for highlights, CTAs, and attention-grabbing phrases. Use it sparingly."),
 
         # === BRAND VOICE & STYLE (for consistent messaging) ===
         tone_attributes: Optional[str] = Form(None, description="Comma-separated tone attributes (e.g., 'Professional, Friendly, Witty')"),
@@ -2316,7 +2441,12 @@ EXECUTION STANDARD
                     logo_bytes=logo_bytes,
                     tagline=tagline,
                     brand_voice=brand_voice,
-                    brand_colors=brand_colors,
+                    primary_color=primary_color,
+                    secondary_color=secondary_color,
+                    accent_color=accent_color,
+                    primary_font=primary_font,
+                    secondary_font=secondary_font,
+                    accent_font=accent_font,
                     tone_attributes=tone_attributes,
                     writing_style=writing_style,
                     posting_goal=posting_goal,

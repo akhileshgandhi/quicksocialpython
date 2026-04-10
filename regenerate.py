@@ -100,6 +100,16 @@ def create_regenerate_router(gemini_client, gemini_model, image_model, storage_d
         elif image_url and image_url.strip():
             url = image_url.strip()
 
+            # If the URL is a full http(s) URL whose path falls under /images/,
+            # extract just the path so we read the file locally instead of making
+            # a self-referential HTTP request (which times out via dev-tunnel URLs).
+            # This covers both original campaign images and already-regenerated images
+            # since all of them live under generated_images/ → served as /images/...
+            from urllib.parse import urlparse as _urlparse
+            _parsed = _urlparse(url)
+            if _parsed.scheme in ("http", "https") and _parsed.path.startswith("/images/"):
+                url = _parsed.path  # e.g. /images/regenerated/abc_ff572f66/edited.png
+
             # Local reference: /images/marketing_posts/abc/post.png
             if url.startswith("/images/"):
                 rel = url[len("/images/"):]

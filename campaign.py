@@ -25,7 +25,7 @@ from utils import (
     download_reference_image, process_uploaded_reference_image,
     build_product_image_context, generate_caption_and_hashtags,
     hybrid_company_understanding, generate_brand_awareness_items,
-    resize_image_for_platform,
+    resize_image_for_platform, build_brand_payload,
 )
 from prompt_guards import NEGATIVE_PROMPT, TYPOGRAPHY_PRECISION, REALISM_STANDARD, SPELLING_PRIORITY_PREAMBLE
 
@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir):
     router = APIRouter(tags=["Campaign"])
     campaign_job_store: Dict[str, dict] = {}
+    _HEARTBEAT_INTERVAL_SECONDS = 8
 
     # File-based persistence so reconnecting clients can retrieve completed results
     _campaign_jobs_dir = Path(storage_dir) / "campaign_jobs"
@@ -66,6 +67,34 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
             pass
         return None
 
+    async def _campaign_heartbeat(job_id: str, queue: asyncio.Queue, stop_event: asyncio.Event) -> None:
+        """Emit periodic keepalive events while long-running model calls are in flight."""
+        try:
+            while not stop_event.is_set():
+                await asyncio.sleep(_HEARTBEAT_INTERVAL_SECONDS)
+                if stop_event.is_set():
+                    break
+                heartbeat_event = {
+                    "step": "heartbeat",
+                    "message": "Gemini is still processing your campaign. Please keep this window open.",
+                }
+                await queue.put(heartbeat_event)
+                _append_event(job_id, heartbeat_event)
+        except asyncio.CancelledError:
+            raise
+
+    async def _stop_background_task(task: Optional[asyncio.Task], stop_event: Optional[asyncio.Event] = None) -> None:
+        """Signal and await helper tasks cleanly."""
+        if stop_event is not None:
+            stop_event.set()
+        if not task:
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
     def _ordinal(n: int) -> str:
         suffix = {1: "st", 2: "nd", 3: "rd"}.get(n if n < 20 else n % 10, "th")
         return f"{n}{suffix}"
@@ -73,20 +102,20 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
     def _get_goal_focus(goal: str) -> str:
         """Return design focus based on campaign goal"""
         goal_mapping = {
-            "Brand awareness": "Introduce brand personality, showcase company values, build emotional connection, make it memorable",
-            "Lead generation": "Highlight unique value proposition, create curiosity, emphasize benefits, encourage contact/signup",
-            "Sales & conversion": "Emphasize transformation and ROI, create urgency with limited offers, show social proof, strong value messaging",
-            "Engagement": "Tell compelling stories, ask engaging questions, encourage shares and comments, build community feeling",
-            "Customer retention": "Show appreciation for loyalty, highlight exclusive benefits, create sense of belonging, recognize customer achievements"
+            "Brand awareness": "Introduce brand personality, showcase company values, build emotional connection, make it memorable. Always use creative approach",
+            "Lead generation": "Highlight unique value proposition, create curiosity, emphasize benefits, encourage contact/signup. Be diverse with the sentence formation",
+            "Sales & conversion": "Emphasize transformation and ROI, create urgency with limited offers, show social proof, strong value messaging. Always use different approach",
+            "Engagement": "Tell compelling stories, ask engaging questions, encourage shares and comments, build community feeling. Smart sentences should be picked to engage the customers",
+            "Customer retention": "Show appreciation for loyalty, highlight exclusive benefits, create sense of belonging, recognize customer achievements. Always pursue the customer is unique ways"
         }
         return goal_mapping.get(goal, "Highlight product/service value and quality")
     
     def _get_emotional_hook(goal: str) -> str:
         """Return emotional hook based on campaign goal"""
         goal_mapping = {
-            "Brand awareness": "CURIOSITY - Make them want to know more about this brand",
-            "Lead generation": "INTEREST - Create desire to learn more and take action",
-            "Sales & conversion": "DESIRE + URGENCY - Make them want to buy NOW",
+            "Brand awareness": "CURIOSITY - Make them want to know more about this brand however do not always starts with questioining pattern such as did you know?",
+            "Lead generation": "INTEREST - Create desire to learn more and take action. Use unique tonality",
+            "Sales & conversion": "DESIRE + URGENCY - Make them want to buy NOW. Use customer centric approach",
             "Engagement": "CONNECTION - Make them feel part of a community",
             "Customer retention": "LOYALTY + GRATITUDE - Make them feel valued and special"
         }
@@ -138,10 +167,10 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
             ("service", "Lead generation"):     ("ARCHITECTURAL/ENVIRON.",   f"The environment where '{_n}' operates — credible, aspirational, professional. Build trust through space and atmosphere."),
             ("service", "Engagement"):          ("EDITORIAL LIFESTYLE",      f"Community energy — genuine human moments, the culture and people '{_n}' brings together."),
             ("service", "Customer retention"):  ("EDITORIAL LIFESTYLE",      f"Long-term clients of '{_n}' — loyalty, gratitude, the relationship that grows over time."),
-            ("brand",   "Brand awareness"):     ("GRAPHIC DESIGN COMP.",     f"'{_n}' as pure design statement — signature color, bold typography, iconic geometry. No product needed. The brand IS the image."),
-            ("brand",   "Sales & conversion"):  ("EDITORIAL LIFESTYLE",      f"'{_n}' in action — aspirational lifestyle imagery people want to buy into. Brand as identity and desire."),
-            ("brand",   "Lead generation"):     ("ARCHITECTURAL/ENVIRON.",   f"The '{_n}' brand world — the aesthetic universe this brand inhabits. Credibility and aspiration through environment."),
-            ("brand",   "Engagement"):          ("CULTURAL/FESTIVE MOMENT",  f"'{_n}' as community — celebrate the shared identity and culture this brand represents. Make the audience feel they belong."),
+            ("brand",   "Brand awareness"):     ("BRAND POSITIONING",        f"'{_n}' brand essence through positioning — show what this brand STANDS FOR, its core values and purpose. The image should communicate the brand's unique positioning in the market, not through decoration but through authentic brand expression. Show the brand's world, audience connection, and why this brand matters."),
+            ("brand",   "Sales & conversion"):  ("BRAND POSITIONING",        f"'{_n}' brand promise made visual — communicate the trust, quality, and value this brand delivers through its positioning. Use brand colors, typography, and authentic visual language to show what makes this brand the choice. Focus on brand positioning and differentiation, not generic appeal."),
+            ("brand",   "Lead generation"):     ("BRAND POSITIONING",        f"The '{_n}' brand universe — visualize the brand's positioning, values, and audience. Use brand's core visual DNA to show who this brand is for and what it stands for. Make the brand's market position and authentic identity visually clear using brand colors, voice, and authentic design language."),
+            ("brand",   "Engagement"):          ("BRAND POSITIONING",        f"'{_n}' brand community and values — show the brand's authentic positioning through the people, culture, and values it represents. Use brand motifs and visual language to communicate what the brand stands for and who it serves. Make it feel like brand truth, not artistic interpretation."),
             ("brand",   "Customer retention"):  ("EDITORIAL LIFESTYLE",      f"Long-time lovers of '{_n}' — show the relationship, belonging, and earned loyalty. Gratitude and exclusivity."),
         }
         key = (_t, goal)
@@ -153,8 +182,9 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
             return f"SELECTED APPROACH → PRODUCT/SERVICE HERO\n'{_n}' is the star — capture it at its most desirable and aspirational."
         elif _t == "service":
             return f"SELECTED APPROACH → EDITORIAL LIFESTYLE\nShow real people experiencing the transformation '{_n}' delivers."
-        return f"SELECTED APPROACH → GRAPHIC DESIGN COMP.\n'{_n}' brand personality expressed through bold design, color, and typography."
-
+        elif _t == "brand_theme":
+            return f"SELECTED APPROACH → BRAND POSITIONING\n'{_n}' brand essence and positioning — communicate what the brand stands for, its core values, unique market position, and authentic visual identity. Show why this brand matters through authentic brand expression, using brand colors, voice, and visual language."
+        return f"SELECTED APPROACH → BRAND POSITIONING\n'{_n}' brand positioning and values expressed authentically — show the brand's unique market position, core purpose, and visual identity. Communicate what makes this brand stand for through on-brand, positioned imagery."
     def _get_font_style(brand_voice: str) -> str:
         """Infer specific font family and weight style from brand voice"""
         if not brand_voice:
@@ -262,7 +292,9 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
         website: Optional[str],
         tagline: Optional[str],
         brand_voice: Optional[str],
-        brand_colors: Optional[str],
+        primary_color: str,
+        secondary_color: str,
+        accent_color: Optional[str],
         content_type: ContentType,
         content_strategy: ContentStrategy,
         platforms: str,
@@ -294,6 +326,9 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
         service_image_url: Optional[str],
         service_image_data: Optional[dict],
         service_post_percentage: Optional[int],
+        primary_font: Optional[str] = None,
+        secondary_font: Optional[str] = None,
+        accent_font: Optional[str] = None,
         custom_prompt: Optional[str] = None,
     ):
         """Run full campaign generation in background; push progress events to queue."""
@@ -309,7 +344,19 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
         logger.info(f" Posts requested: {num_posts}")
         logger.info("=" * 70)
 
+        heartbeat_stop = asyncio.Event()
+        heartbeat_task = asyncio.create_task(_campaign_heartbeat(job_id, queue, heartbeat_stop))
+
         try:
+            color_payload = build_brand_payload(
+                primary_color=primary_color,
+                secondary_color=secondary_color,
+                accent_color=accent_color,
+                primary_font=primary_font,
+                secondary_font=secondary_font,
+                accent_font=accent_font,
+            )
+
             # ═══════════════════════════════════════════════════════════════
             # STEP 1: VALIDATE PLATFORMS
             # ═══════════════════════════════════════════════════════════════
@@ -499,6 +546,7 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
                         "post_percentage": 100,
                     }]
 
+
             # ═══════════════════════════════════════════════════════════════
             # STEP 3: BUILD GENERATION QUEUE (PERCENTAGE-BASED)
             # ═══════════════════════════════════════════════════════════════
@@ -547,6 +595,7 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
             semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
             total_tasks = len(generation_queue)
 
+
             async def _generate_single_post(task):
                 """Generate a single campaign post (image + caption) with concurrency control."""
                 async with semaphore:
@@ -560,6 +609,47 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
 
                     logger.info(f"\n   [{post_num}/{total_tasks}] {item_type.upper()}: {item_name} on {platform.upper()}")
 
+                    # ── Resolve reference image ──────────────────────────────────────────────
+                    product_ref_image = None
+                    if item.get("uploaded_image_data") and item["uploaded_image_data"].get("success"):
+                        logger.info(f"      [REF_IMAGE] Using uploaded product image...")
+                        product_ref_image = item["uploaded_image_data"]
+                    elif item.get("image_url"):
+                        logger.info(f"      [REF_IMAGE] Downloading product reference image from URL...")
+                        product_ref_image = await asyncio.to_thread(download_reference_image, item["image_url"])
+                        if not (product_ref_image and product_ref_image.get("success")):
+                            logger.warning(f"      [REF_IMAGE] Download failed — proceeding without reference")
+                            product_ref_image = None
+
+                    _has_ref_image = bool(product_ref_image and product_ref_image.get("success"))
+                    _item_desc = item.get('description', '')[:500] if item.get('description') else f'Premium {item_type} from {company_name}'
+                    _visual_approach = _get_visual_approach(item_type, campaign_goal.value, item_name)
+
+                    # When a reference image is provided, override the visual approach for both
+                    # product and service so Gemini is explicitly anchored to the provided photo —
+                    # not inventing the product/environment from scratch.
+                    if _has_ref_image and item_type.lower() == "product":
+                        _visual_approach = (
+                            f"SELECTED APPROACH → REFERENCE-ANCHORED PRODUCT HERO\n"
+                            f"⚠ A reference image has been provided immediately above. It shows the ACTUAL product: '{item_name}'.\n"
+                            f"MANDATORY: Your generated image MUST feature this exact product — same shape, same colors, same material finish, same proportions.\n"
+                            f"• The viewer must be able to RECOGNISE this as the identical product from the reference photo\n"
+                            f"• Do NOT invent, hallucinate, or redesign the product — use what is shown in the reference\n"
+                            f"• Place it in an aspirational lifestyle context that amplifies its quality and desirability\n"
+                            f"• The product is the undisputed hero — dominant in the frame, fully visible, never cropped at any edge"
+                        )
+                    elif _has_ref_image and item_type.lower() == "service":
+                        _visual_approach = (
+                            f"SELECTED APPROACH → REFERENCE-GROUNDED ENVIRONMENT\n"
+                            f"⚠ A reference image has been provided immediately above. It shows the ACTUAL space, environment, or setting for '{item_name}'.\n"
+                            f"MANDATORY: Your generated image MUST be visually grounded in that reference photo — same space, same atmosphere, same architectural identity, same materials and lighting character.\n"
+                            f"• Reproduce the real environment faithfully — do NOT replace it with a generic, hallucinated, or stock-photo alternative\n"
+                            f"• You may enrich the scene: add people interacting naturally, improve lighting dramatics, heighten the emotional resonance\n"
+                            f"• The reference environment is the story — keep it recognisable and authentic"
+                        )
+
+                    _promoting_line = f"{item_type.title()} — {item_name}"
+
                     # ===================================================================
                     # BUILD IMAGE PROMPT (Gemini renders text + photo together)
                     # ===================================================================
@@ -567,104 +657,14 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
                         "Integrate the brand logo (shown above) as a natural design element — place it in a compositionally clean zone where it feels purposefully designed in, not pasted on. The surrounding area must harmonize with the logo's own colors and style. PIXEL-PERFECT LOGO REPRODUCTION: The logo is a locked identity asset — do NOT recolor, restyle, reinterpret, redesign, or alter ANY element (colors, fonts, shapes, icons, arrangement). Every color in the logo must appear exactly as provided. Only resize/scale the logo as needed for placement — absolutely no other changes."
                         if logo_bytes else "No logo provided — do not invent or hallucinate any brand mark."
                     )
-                    _item_desc = item.get('description', '')[:500] if item.get('description') else f'Premium {item_type} from {company_name}'
                     _post_pct = item.get('post_percentage', 100)
                     _visual_weight = (
                         f"Visual Emphasis: {_post_pct}% of this campaign is allocated to {item_type} '{item_name}' — this image must give DOMINANT visual weight and creative focus to this {item_type}. It is the HERO of this image."
                         if _post_pct >= 50 else
                         f"Visual Emphasis: {_post_pct}% campaign allocation — the {item_type} '{item_name}' should be clearly featured but can share visual space with brand identity elements."
                     )
-                    _visual_approach = _get_visual_approach(item_type, campaign_goal.value, item_name)
-                    _font_style = _get_font_style(brand_voice or '')
-                    _color_ref = brand_colors or 'the brand color palette'
+                    _color_ref = color_payload["atmosphere_reference"]
 
-                    # ── Per-post creative angle (cycles through 8 universal approaches) ──
-                    # Zero extra API calls. The image model derives the specific scene
-                    # from the brand payload + this angle directive.
-                    _CREATIVE_ANGLES = [
-                        ("HUMAN IMPACT",
-                         f"Show a real person whose situation is genuinely changed by {item_name}. "
-                         f"Make the transformation specific and visible — not symbolic. Real setting, "
-                         f"real expression, the result evident in the scene."),
-                        ("PROOF OF RESULTS",
-                         f"Make the measurable outcome the visual hero. A real result that {item_name} delivers — "
-                         f"a metric on a real screen, a concrete before/after state, a clear win. Evidence over promise."),
-                        ("BRAND AUTHORITY",
-                         f"Express {company_name}'s identity and expertise directly — bold, confident, minimal. "
-                         f"The brand's voice and values as the image itself, without relying on the product alone."),
-                        ("THE PROBLEM",
-                         f"Show the real frustration or gap that {item_name} solves. The audience should "
-                         f"recognise their own situation immediately — honest, grounded, relatable, real."),
-                        ("TRUST & CRAFT",
-                         f"Show the people, process, or depth of expertise behind {company_name}. "
-                         f"The quality of thought and work that makes {item_name} worth choosing."),
-                        ("ASPIRATION",
-                         f"Show the outcome the brand enables — the state of work or life that becomes "
-                         f"possible with {item_name}. Real, grounded, genuinely desirable."),
-                        ("ONE SPECIFIC DETAIL",
-                         f"Zoom in on one concrete, specific aspect of {item_name} — one feature, one use case, "
-                         f"one moment of use — explored with precision and depth. Specificity over breadth."),
-                        ("SOCIAL PROOF",
-                         f"Let real results speak — real reviews, real numbers, real client moments. "
-                         f"The evidence that {item_name} delivers, shown rather than claimed."),
-                    ]
-                    _angle_name, _angle_desc = _CREATIVE_ANGLES[(post_num - 1) % len(_CREATIVE_ANGLES)]
-
-                    # ── Composition directive (cycles through 8 physically distinct layouts) ──
-                    # All platforms now share the same 4:5 format, so explicit composition
-                    # rotation is the ONLY way to guarantee structural variety across posts.
-                    _COMPOSITION_DIRECTIVES = [
-                        ("ISOLATED HERO",
-                         f"CENTER-FRAME ISOLATION: The {item_type} is perfectly centered. "
-                         f"Ultra-clean, minimal background — a single material surface or pure graduated tone. "
-                         f"Maximum breathing space on all four sides. No competing visual elements. "
-                         f"The {item_type} elevated to the status of a gallery sculpture. Tight depth of field."),
-
-                        ("SUBJECT RIGHT — TEXT LEFT",
-                         f"ASYMMETRIC RIGHT ANCHOR: The {item_type} anchors the RIGHT third of frame. "
-                         f"The LEFT two-thirds is intentional, high-contrast negative space — "
-                         f"a clean open void designed to hold the headline. "
-                         f"Camera at eye level. Shallow depth of field softens background."),
-
-                        ("OVERHEAD FLAT-LAY",
-                         f"TOP-DOWN BIRD'S-EYE: Camera directly overhead, 90-degree angle looking straight down. "
-                         f"The {item_type} arranged on a textured horizontal surface with 2-3 carefully chosen props. "
-                         f"Open space in the upper-left corner reserved for text overlay. "
-                         f"All elements seen from directly above — pure graphic, no perspective depth."),
-
-                        ("MACRO CLOSE-UP — TEXTURE",
-                         f"EXTREME CLOSE-UP: Camera so close that only ONE portion of the {item_type} fills the frame — "
-                         f"a surface texture, material edge, or defining physical detail. "
-                         f"The subject becomes abstract and desire-inducing at this scale. "
-                         f"Intentionally cropped at frame edges. Upper third held open for text."),
-
-                        ("ENVIRONMENTAL WIDE SHOT",
-                         f"SCENE OVER SUBJECT: Pull back. The {item_type} occupies no more than 25% of the frame — "
-                         f"the environment, location, and context dominate. "
-                         f"This post sells the world the {item_type} lives in, not the {item_type} alone. "
-                         f"Open sky or clean architectural element in the upper area holds space for text."),
-
-                        ("LOW ANGLE — UPWARD PERSPECTIVE",
-                         f"HEROIC UPWARD CAMERA: Camera positioned LOW, shooting UP toward the {item_type} or its user. "
-                         f"Sky, ceiling, or dramatic environment fills the top half of frame. "
-                         f"The subject appears monumental and aspirational from below. "
-                         f"Put the upper half of the canvas to dramatic, wide-open use."),
-
-                        ("SUBJECT LEFT — TEXT RIGHT",
-                         f"ASYMMETRIC LEFT ANCHOR: Mirror of the right-anchor layout. The {item_type} anchors the LEFT third. "
-                         f"The RIGHT two-thirds is open negative space ready for copy. "
-                         f"Alternating left-right across posts keeps the campaign grid visually dynamic. "
-                         f"Slight downward angle. Sharp subject, soft background."),
-
-                        ("DIAGONAL ENERGY",
-                         f"DIAGONAL AXIS COMPOSITION: The primary subject or its dominant lines run along the diagonal "
-                         f"of the frame — lower-left to upper-right or upper-left to lower-right. "
-                         f"Strong sense of motion, tension, or forward momentum. "
-                         f"Unconventional cropping at frame edges. Text in the calmer opposing corner."),
-                    ]
-                    _comp_name, _comp_instruction = _COMPOSITION_DIRECTIVES[(post_num - 1) % len(_COMPOSITION_DIRECTIVES)]
-
-                    # ── Platform visual treatment (differentiates platforms despite same format) ──
                     _PLATFORM_VISUAL_TREATMENT = {
                         "instagram": "Aspirational lifestyle, high editorial punch — saturated but tasteful, thumb-stopping contrast. Every pixel must earn the scroll-stop.",
                         "facebook":  "Human, warm, community-rooted — relatable over polished. Approachable warmth and real emotions that invite sharing.",
@@ -673,6 +673,26 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
                         "youtube":   "Cinematic scope and drama — wide, immersive, motion-suggesting. Scale, emotion, and narrative energy.",
                     }
                     _platform_vt = _PLATFORM_VISUAL_TREATMENT.get(platform, f"Platform-appropriate visual treatment for {platform}.")
+
+                    # ── STEP A: Generate caption + display_text ──────────────────────────────
+                    logger.info(f"      [STEP A] Generating caption + display_text...")
+                    caption, hashtags, campaign_display_text = await generate_caption_and_hashtags(
+                        item_name=item_name,
+                        item_type=item_type,
+                        item_description=item.get("description"),
+                        item_price=item.get("price"),
+                        platform=platform,
+                        platform_spec=platform_spec,
+                        company_name=company_name,
+                        brand_voice=brand_voice,
+                        campaign_goal=campaign_goal.value,
+                        campaign_goal_direction=_get_campaign_goal_caption_direction(campaign_goal.value),
+                        content_type_direction=_get_content_type_caption_direction(content_type.value),
+                        gemini_client=gemini_client,
+                        gemini_model=gemini_model,
+                        tagline=tagline
+                    )
+                    logger.info(f"      [STEP A] Caption: '{caption[:50]}...' | Display: '{campaign_display_text[:50]}'")
 
                     if content_strategy == ContentStrategy.platform_specific:
                         prompt = f"""{SPELLING_PRIORITY_PREAMBLE}
@@ -686,81 +706,56 @@ BRAND PAYLOAD
 Company: {company_name}
 Tagline: "{tagline or '—'}"
 Brand Voice: {brand_voice or 'Professional and trustworthy'}
-Brand Colors: {brand_colors or 'Industry-appropriate palette'}
+Brand Color Hierarchy:
+{color_payload["prompt_block"]}
+Brand Font Hierarchy:
+{color_payload["font_prompt_block"]}
 Website: {website or '—'}
-Industry Profile: {company_description or 'Professional services'}
+Industry Profile: {(company_description or 'Professional services')[:350]}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CAMPAIGN BRIEF
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Promoting: {item_type.title()} — {item_name}
+Promoting: {_promoting_line}
 What it is: {_item_desc}
 Goal: {campaign_goal.value.upper()} — {_get_goal_focus(campaign_goal.value)}
 Emotional Hook: {_get_emotional_hook(campaign_goal.value)}
 Content Type: {content_type.value.upper()} — {_get_content_type_image_direction(content_type.value)}
 {_visual_weight}
-Platform: {platform_spec['name']} | Format: {platform_spec['aspect_ratio']} | Tone: {platform_spec['tone']}
+Platform: {platform_spec['name']} | Format: 4:5 | Tone: {platform_spec['tone']}
 Platform Visual Language: {_platform_vt}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 YOUR DESIGN DECISIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-▸ STEP 1 — VISUAL CONCEPT
-
-READ THE FULL BRAND PAYLOAD AND CAMPAIGN BRIEF ABOVE BEFORE PROCEEDING.
-
-This image is post {post_num} of {total_tasks} in {company_name}'s campaign.
-It must feel like it was commissioned and approved by {company_name}'s own marketing team —
-not AI-generated, not a template, not a stock photo concept.
-
-CREATIVE DIRECTION: {_visual_approach}
-{f'''
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-USER'S VISUAL CONCEPT — PRIMARY CREATIVE BRIEF
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{custom_prompt}
-
-This is the user's chosen creative direction. Use it as the foundation for the scene
-concept. Adapt it to the brand payload, the product being promoted, and the platform —
-but preserve the core visual concept, composition, lighting approach, and emotional
-intent exactly as described.
-''' if custom_prompt else ""}
-THIS POST'S ANGLE — {_angle_name}:
-{_angle_desc}
-
-BEFORE YOU RENDER ANYTHING — MAKE THESE THREE DECISIONS:
-
-① SCENE (most important):
-{f"Build directly on the USER'S VISUAL CONCEPT above — adapt it for [{_angle_name}] applied to {item_name} on {platform_spec['name']}. Keep the visual language, composition, lighting approach, and emotional tone from the user's brief intact." if custom_prompt else f"What single, specific, real-world scene — one that could actually be photographed or professionally rendered by a human creative team — best delivers [{_angle_name}] for {company_name}'s audience? Draw this scene from the brand payload above: the company description, brand voice, the item being promoted, and its actual details. Be concrete and specific — not a category of image but a precise visual moment."}
-✗ If your scene could apply to ANY company in this space — reject it and think again.
-✗ If the scene relies on abstract metaphors instead of real-world grounding — reject it.
-
-② BRAND DNA:
-Does the scene reflect '{brand_voice or 'the brand voice'}' and the brand colors
-not as labels but as lived qualities — present in the lighting, materials, setting,
-energy, and the people or objects shown?
-
-③ COMPOSITION DIRECTIVE — {_comp_name} (MANDATORY):
-{_comp_instruction}
-This is a hard structural requirement. Execute it precisely — it is not a suggestion.
-
-④ VISUAL DISTINCTION:
-Post {post_num} of {total_tasks} — if all {total_tasks} posts in this campaign were laid side by side, this one must be IMMEDIATELY distinguishable from every other. The composition above is already different. Beyond that: use a different lighting setup, a different scene location, a different color temperature, and a different relationship between subject and environment than the adjacent posts. Same brand, same quality — totally different image.
+▸ STEP 1 — VISUAL APPROACH
+{_visual_approach}
 
 ▸ STEP 2 — COMPOSITION & ATMOSPHERE
-Plan the focal point and spatial zones. The {_color_ref} is the emotional backbone of this image — dominant scene colors, lighting, materials, surfaces, and reflections MUST embody these brand colors. They must feel like they live IN the scene, not applied over it. Camera angle and depth of field must reflect the brand's market tier and campaign emotion.
+Plan the focal point and spatial zones. The {_color_ref} is the emotional backbone of this image — dominant scene colors, lighting, materials, surfaces, and reflections MUST embody this color hierarchy. They must feel like they live IN the scene, not applied over it. Camera angle and depth of field must reflect the brand's market tier and campaign emotion.
 SPATIAL RULES — establish these before placing any element:
 — Product/subject visibility: the ENTIRE product must be fully within frame with intentional breathing space on all sides. Never crop any edge of the product at the canvas boundary — partial or edge-clipped products are a failure.
 — Text zone: plan a dedicated text zone before arranging any visual element — product anchors one side, text zone occupies the opposing side or the lower third. The text zone is designed in from the start, not found in leftover space afterward.
+{f'''
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USER'S VISUAL CONCEPT — THIS OVERRIDES THE DEFAULT BRIEF BELOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{custom_prompt}
 
-▸ STEP 3 — TYPOGRAPHY (DESIGNED INTO THE IMAGE, NOT PLACED ON TOP)
-Design the typography as a native element of this composition — the font, color, placement, shadow, and weight must feel like they were conceived alongside the visual, not applied after. The text must belong to this image.
-Render exactly TWO lines of marketing copy directly on the image.
-⚠ CRITICAL: Do NOT render the words "Headline", "Subline", "Line 1", "Line 2", or any label — render ONLY the actual marketing copy text itself.
-  — Line 1 (bold, large): Primary message — short and punchy headline, no filler
-  — Line 2 (lighter weight, smaller): Supporting message — clear and complete, no padding
-Font: {_font_style}
-Text color drawn from this image's own palette — harmonize with {_color_ref}, never a default white or black unless the composition demands it. Apply a directional shadow matching the scene's light source.
+Use this as the foundation for the scene. Adapt it to the brand payload and platform —
+but preserve the core visual concept, composition, lighting approach, and emotional intent exactly as described.
+''' if custom_prompt else ""}
+▸ STEP 3 — TYPOGRAPHY (ART DIRECTED — NOT TEMPLATED)
+The typography is a creative design decision, not a template to fill in. Choose a layout that serves THIS specific image — the weight, size, number of lines, and placement are yours to decide.
+⚠ CRITICAL: Do NOT render any label words ("Headline", "Subline", "Line 1", "Line 2") — render ONLY the actual copy.
+⛔ CANVAS RULE: ALL text must be 100% fully visible within the image frame — no word, letter, or character may be clipped or cut off at any edge. Size down the font or break a long line into two before ever letting text overflow the canvas boundary.
+Options (choose the one that best fits the visual):
+  • A single bold statement — sized to fit the full width with clear margin on both sides
+  • A two-line hierarchy with a dominant headline and a supporting line, both fully within frame
+  • Three short lines of equal or graduated weight for rhythm
+  • A kinetic display type that runs with the composition's energy
+The copy must be specific to {company_name} — no filler, no generic phrases.
+Text color drawn from this image's own palette — harmonize with the brand color hierarchy led by {color_payload["primary_color"]}, never a default white or black unless the composition demands it. Apply a directional shadow matching the scene's light source.
 {TYPOGRAPHY_PRECISION}
 
 ▸ STEP 4 — LOGO
@@ -777,7 +772,7 @@ EXECUTION STANDARD
 ✗ No anatomical misalignment — face direction MUST match body orientation. No twisted necks or heads facing opposite to body. No ghost-like disconnected anatomy.
 {"✓ Integrate the provided brand logo (shown above) as a natural design element — surroundings must harmonize with logo colors, not clash" if logo_bytes else "✗ Do NOT invent or hallucinate any company logo or brand mark — omit entirely"}
 """
-                        aspect_ratio = platform_spec['gemini_aspect']
+                        aspect_ratio = "3:4"
                     else:
                         prompt = f"""{SPELLING_PRIORITY_PREAMBLE}
 You are a world-class creative director, art director, and visual designer with 25+ years building award-winning campaigns for global brands across every industry — luxury, technology, healthcare, finance, consumer, enterprise. You produce work that earns attention, builds brand memory, and drives results.
@@ -790,81 +785,55 @@ BRAND PAYLOAD
 Company: {company_name}
 Tagline: "{tagline or '—'}"
 Brand Voice: {brand_voice or 'Professional and trustworthy'}
-Brand Colors: {brand_colors or 'Industry-appropriate palette'}
+Brand Color Hierarchy:
+{color_payload["prompt_block"]}
+Brand Font Hierarchy:
+{color_payload["font_prompt_block"]}
 Website: {website or '—'}
-Industry Profile: {company_description or 'Professional services'}
+Industry Profile: {(company_description or 'Professional services')[:350]}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CAMPAIGN BRIEF
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Promoting: {item_type.title()} — {item_name}
+Promoting: {_promoting_line}
 What it is: {_item_desc}
 Goal: {campaign_goal.value.upper()} — {_get_goal_focus(campaign_goal.value)}
 Emotional Hook: {_get_emotional_hook(campaign_goal.value)}
 Content Type: {content_type.value.upper()} — {_get_content_type_image_direction(content_type.value)}
 {_visual_weight}
-Platform: Multi-platform ({', '.join(valid_platforms)}) | Format: 4:5 Portrait | Current: {platform_spec['name']}
-Platform Visual Language: {_platform_vt}
+Platform: Multi-platform ({', '.join(valid_platforms)}) | Format: Square 1:1
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 YOUR DESIGN DECISIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-▸ STEP 1 — VISUAL CONCEPT
-
-READ THE FULL BRAND PAYLOAD AND CAMPAIGN BRIEF ABOVE BEFORE PROCEEDING.
-
-This image is post {post_num} of {total_tasks} in {company_name}'s campaign.
-It must feel like it was commissioned and approved by {company_name}'s own marketing team —
-not AI-generated, not a template, not a stock photo concept.
-
-CREATIVE DIRECTION: {_visual_approach}
-{f'''
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-USER'S VISUAL CONCEPT — PRIMARY CREATIVE BRIEF
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{custom_prompt}
-
-This is the user's chosen creative direction. Use it as the foundation for the scene
-concept. Adapt it to the brand payload, the product being promoted, and the platform —
-but preserve the core visual concept, composition, lighting approach, and emotional
-intent exactly as described.
-''' if custom_prompt else ""}
-THIS POST'S ANGLE — {_angle_name}:
-{_angle_desc}
-
-BEFORE YOU RENDER ANYTHING — MAKE THESE THREE DECISIONS:
-
-① SCENE (most important):
-{f"Build directly on the USER'S VISUAL CONCEPT above — adapt it for [{_angle_name}] applied to {item_name} on {platform_spec['name']}. Keep the visual language, composition, lighting approach, and emotional tone from the user's brief intact." if custom_prompt else f"What single, specific, real-world scene — one that could actually be photographed or professionally rendered by a human creative team — best delivers [{_angle_name}] for {company_name}'s audience? Draw this scene from the brand payload above: the company description, brand voice, the item being promoted, and its actual details. Be concrete and specific — not a category of image but a precise visual moment."}
-✗ If your scene could apply to ANY company in this space — reject it and think again.
-✗ If the scene relies on abstract metaphors instead of real-world grounding — reject it.
-
-② BRAND DNA:
-Does the scene reflect '{brand_voice or 'the brand voice'}' and the brand colors
-not as labels but as lived qualities — present in the lighting, materials, setting,
-energy, and the people or objects shown?
-
-③ COMPOSITION DIRECTIVE — {_comp_name} (MANDATORY):
-{_comp_instruction}
-This is a hard structural requirement. Execute it precisely — it is not a suggestion.
-
-④ VISUAL DISTINCTION:
-Post {post_num} of {total_tasks} — if all {total_tasks} posts in this campaign were laid side by side, this one must be IMMEDIATELY distinguishable from every other. The composition above is already different. Beyond that: use a different lighting setup, a different scene location, a different color temperature, and a different relationship between subject and environment than the adjacent posts. Same brand, same quality — totally different image.
+▸ STEP 1 — VISUAL APPROACH
+{_visual_approach}
 
 ▸ STEP 2 — COMPOSITION & ATMOSPHERE
-Plan the focal point and spatial zones. The {_color_ref} is the emotional backbone of this image — dominant scene colors, lighting, materials, surfaces, and reflections MUST embody these brand colors. They must feel like they live IN the scene, not applied over it. Square format — central focal point works across all platforms.
+Plan the focal point and spatial zones. The {_color_ref} is the emotional backbone of this image — dominant scene colors, lighting, materials, surfaces, and reflections MUST embody this color hierarchy. They must feel like they live IN the scene, not applied over it. Square format — central focal point works across all platforms.
 SPATIAL RULES — establish these before placing any element:
 — Product/subject visibility: the ENTIRE product must be fully within frame with intentional breathing space on all sides. Never crop any edge of the product at the canvas boundary — partial or edge-clipped products are a failure.
 — Text zone: plan a dedicated text zone before arranging any visual element — product anchors the centre, text zone occupies the lower third or a clear side panel. The text zone is designed in from the start, not found in leftover space afterward.
+{f'''
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USER'S VISUAL CONCEPT — THIS OVERRIDES THE DEFAULT BRIEF BELOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{custom_prompt}
 
-▸ STEP 3 — TYPOGRAPHY (DESIGNED INTO THE IMAGE, NOT PLACED ON TOP)
-Design the typography as a native element of this composition — the font, color, placement, shadow, and weight must feel like they were conceived alongside the visual, not applied after. The text must belong to this image.
-Render exactly TWO lines of marketing copy directly on the image.
-⚠ CRITICAL: Do NOT render the words "Headline", "Subline", "Line 1", "Line 2", or any label — render ONLY the actual marketing copy text itself.
-  — Line 1 (bold, large): Primary message — short and punchy headline, no filler
-  — Line 2 (lighter weight, smaller): Supporting message — clear and complete, no padding
-Font: {_font_style}
-Text color drawn from this image's own palette — harmonize with {_color_ref}, never a default white or black unless the composition demands it. Apply a directional shadow matching the scene's light source.
+Use this as the foundation for the scene. Adapt it to the brand payload and platform —
+but preserve the core visual concept, composition, lighting approach, and emotional intent exactly as described.
+''' if custom_prompt else ""}
+▸ STEP 3 — TYPOGRAPHY (ART DIRECTED — NOT TEMPLATED)
+The typography is a creative design decision, not a template to fill in. Choose a layout that serves THIS specific image — the weight, size, number of lines, and placement are yours to decide.
+⚠ CRITICAL: Do NOT render any label words ("Headline", "Subline", "Line 1", "Line 2") — render ONLY the actual copy.
+⛔ CANVAS RULE: ALL text must be 100% fully visible within the image frame — no word, letter, or character may be clipped or cut off at any edge. Size down the font or break a long line into two before ever letting text overflow the canvas boundary.
+Options (choose the one that best fits the visual):
+  • A single bold statement — sized to fit the full width with clear margin on both sides
+  • A two-line hierarchy with a dominant headline and a supporting line, both fully within frame
+  • Three short lines of equal or graduated weight for rhythm
+  • A kinetic display type that runs with the composition's energy
+The copy must be specific to {company_name} — no filler, no generic phrases.
+Text color drawn from this image's own palette — harmonize with the brand color hierarchy led by {color_payload["primary_color"]}, never a default white or black unless the composition demands it. Apply a directional shadow matching the scene's light source.
 {TYPOGRAPHY_PRECISION}
 
 ▸ STEP 4 — LOGO
@@ -884,59 +853,66 @@ EXECUTION STANDARD
                         aspect_ratio = "1:1"
 
                     try:
-                        # Build content for Gemini
-                        contents = [prompt]
+                        # ── Build Gemini contents as a SINGLE multimodal user turn ──────────────
+                        # Critical: all parts (reference image, prompt, logo) must live inside ONE
+                        # types.Content(role="user", parts=[...]).  A flat list makes each element
+                        # a separate conversation turn — the model can't associate the reference
+                        # image with the generation task.  All image data must be raw bytes;
+                        # passing a base64 string causes silent decode failure in the SDK.
+                        _parts = []
 
-                        # PRODUCT/SERVICE REFERENCE IMAGE INTEGRATION
-                        product_ref_image = None
-                        if item.get("uploaded_image_data") and item["uploaded_image_data"].get("success"):
-                            logger.info(f"      [REF_IMAGE] Using uploaded product image...")
-                            product_ref_image = item["uploaded_image_data"]
-                        elif item.get("image_url"):
-                            logger.info(f"      [REF_IMAGE] Downloading product reference image from URL...")
-                            product_ref_image = await asyncio.to_thread(download_reference_image, item["image_url"])
-
-                        if product_ref_image and product_ref_image.get("success"):
+                        # 1. Reference image FIRST — raw bytes via typed Blob
+                        if _has_ref_image:
                             product_context = build_product_image_context(
                                 reference_image=product_ref_image,
                                 item_name=item_name,
                                 item_type=item_type
                             )
-                            contents.extend(product_context)
-                            logger.info(f"      [REF_IMAGE] ✓ Product reference image added to generation context")
+                            # product_context = [{"inline_data": {"mime_type":..., "data": bytes}}, "text"]
+                            _ref_inline = product_context[0]["inline_data"]
+                            _parts.append(types.Part(
+                                inline_data=types.Blob(
+                                    mime_type=_ref_inline["mime_type"],
+                                    data=_ref_inline["data"]          # raw bytes
+                                )
+                            ))
+                            _parts.append(types.Part(text=product_context[1]))
+                            logger.info(f"      [REF_IMAGE] ✓ Reference image injected as typed Part with raw bytes")
                         elif item.get("uploaded_image_data") or item.get("image_url"):
-                            logger.warning(f"      [REF_IMAGE] Could not process product image, proceeding without reference")
+                            logger.warning(f"      [REF_IMAGE] Could not process image — proceeding without reference")
 
-                        # Logo injection — send actual logo for Gemini to place in image
+                        # 2. Main generation prompt
+                        _parts.append(types.Part(text=prompt))
+
+                        # 3. Logo — raw bytes via typed Blob
                         if logo_bytes:
                             _logo_mime = "image/jpeg" if logo_bytes[:3] == b'\xff\xd8\xff' else "image/png"
-                            contents.append({"inline_data": {"mime_type": _logo_mime, "data": base64.b64encode(logo_bytes).decode("utf-8")}})
-                            contents.append("LOGO REFERENCE: This is the exact brand logo — treat it as a LOCKED, PIXEL-PERFECT asset. Integrate it into the composition so it feels designed in, not pasted on. ABSOLUTELY DO NOT change any logo colors, fonts, shapes, icons, or styling. Do not reinterpret or redesign any part of it. The only allowed operation is resizing/scaling. Every color in this logo must appear exactly as shown.")
+                            _parts.append(types.Part(
+                                inline_data=types.Blob(mime_type=_logo_mime, data=logo_bytes)
+                            ))
+                            _parts.append(types.Part(text=(
+                                "THIS IMAGE IS THE BRAND LOGO — MEMORISE ITS EXACT COLORS RIGHT NOW.\n"
+                                "Look at every color in this logo carefully. You must reproduce each one with zero deviation.\n\n"
+                                "THE LOGO IS A FLAT 2D ASSET — NOT A SCENE OBJECT:\n"
+                                "It does not exist inside the photograph or render. It is not lit by the scene's light.\n"
+                                "It is composited ON TOP of the finished image — like a logo on a printed poster.\n"
+                                "The scene's warm glow, cool shadows, and color grade DO NOT reach the logo. It is immune.\n\n"
+                                "ONLY ALLOWED: resize or scale the logo to fit its placement zone.\n\n"
+                                "FORBIDDEN — each of these is an immediate, unrecoverable failure:\n"
+                                "✗ Any color change — even 1% shift in hue, saturation, or brightness\n"
+                                "✗ Tinting or warming the logo to match the scene's light (the most common mistake — do not do this)\n"
+                                "✗ Desaturating, darkening, or lightening any logo color\n"
+                                "✗ Changing any shape, font, icon, line weight, or spacing inside the logo\n"
+                                "✗ Removing, adding, or moving any element inside the logo\n"
+                                "✗ Cropping or clipping any part of the logo\n\n"
+                                "FINAL COLOR CHECK: Before outputting the image, compare the logo you rendered to this reference. "
+                                "If any color differs — fix it before output. The logo must look identical to this image, just resized."
+                            )))
 
-                        # ═══════════════════════════════════════════════════════════
-                        # STEP A: Generate caption + display_text FIRST
-                        # ═══════════════════════════════════════════════════════════
-                        logger.info(f"      [STEP A] Generating caption + display_text...")
-                        caption, hashtags, campaign_display_text = await generate_caption_and_hashtags(
-                            item_name=item_name,
-                            item_type=item_type,
-                            item_description=item.get("description"),
-                            item_price=item.get("price"),
-                            platform=platform,
-                            platform_spec=platform_spec,
-                            company_name=company_name,
-                            brand_voice=brand_voice,
-                            campaign_goal=campaign_goal.value,
-                            campaign_goal_direction=_get_campaign_goal_caption_direction(campaign_goal.value),
-                            content_type_direction=_get_content_type_caption_direction(content_type.value),
-                            gemini_client=gemini_client,
-                            gemini_model=gemini_model,
-                            tagline=tagline
-                        )
-                        logger.info(f"      [STEP A] Caption: '{caption[:50]}...' | Display: '{campaign_display_text[:50]}'")
+                        # Single user turn containing all parts
+                        contents = [types.Content(role="user", parts=_parts)]
 
-                        # STEP D: Generate image
-                        from google.genai import types
+                        # STEP B: Generate image
                         image_response = await gemini_client.aio.models.generate_content(
                             model=image_model,
                             contents=contents,
@@ -970,13 +946,12 @@ EXECUTION STANDARD
                             logger.error(f"      [ERROR] No image generated for post {post_num}")
                             return None
 
-                        # Resize if same_content strategy
-                        if content_strategy == ContentStrategy.same_content:
-                            image_bytes = resize_image_for_platform(
-                                image_bytes,
-                                platform_spec['width'],
-                                platform_spec['height']
-                            )
+                        # Resize to target canvas — dimensions matched to Gemini's generated ratio
+                        # platform_specific uses aspect_ratio="3:4" → output 1080×1350 (direct resize, no crop)
+                        # same_content uses aspect_ratio="1:1"      → output 1080×1080 (exact match, no distortion)
+                        _out_w = 1080
+                        _out_h = 1350 if aspect_ratio == "3:4" else 1080
+                        image_bytes = resize_image_for_platform(image_bytes, _out_w, _out_h)
 
                         # Save image
                         save_result = save_campaign_image(
@@ -1018,12 +993,17 @@ EXECUTION STANDARD
                             "website": website,
                             "tagline": tagline,
                             "brand_voice": brand_voice,
-                            "brand_colors": brand_colors,
+                            "primary_color": color_payload["primary_color"],
+                            "secondary_color": color_payload["secondary_color"],
+                            "accent_color": color_payload["accent_color"],
+                            "primary_font": color_payload["primary_font"],
+                            "secondary_font": color_payload["secondary_font"],
+                            "accent_font": color_payload["accent_font"],
                             "content_type": content_type.value,
                             "content_strategy": content_strategy.value,
                             "platforms_in_campaign": valid_platforms,
-                            "aspect_ratio": platform_spec['aspect_ratio'],
-                            "dimensions": f"{platform_spec['width']}x{platform_spec['height']}",
+                            "aspect_ratio": "4:5" if aspect_ratio == "3:4" else "1:1",
+                            "dimensions": f"{_out_w}x{_out_h}",
                             "file_size_bytes": len(image_bytes),
                             "model": image_model,
                             "caption": caption,
@@ -1034,6 +1014,13 @@ EXECUTION STANDARD
                             "local_path": save_result["local_path"],
                             "image_url": save_result["url"],
                             "logo_included": logo_bytes is not None,
+                            "reference_image_provided": _has_ref_image,
+                            "reference_image_source": (
+                                "upload" if (item.get("uploaded_image_data") and item["uploaded_image_data"].get("success"))
+                                else "url" if item.get("image_url")
+                                else None
+                            ),
+                            "reference_image_url": item.get("image_url") if (not item.get("uploaded_image_data") and item.get("image_url")) else None,
                             "platform_specs": {
                                 "name": platform_spec['name'],
                                 "tone": platform_spec['tone'],
@@ -1048,6 +1035,10 @@ EXECUTION STANDARD
 
                         logger.info(f"      [METADATA] {metadata_file.name}")
 
+                        # Convert aspect_ratio (e.g., "3:4") to display format ("4:5")
+                        _display_ratio = "4:5" if aspect_ratio == "3:4" else "1:1"
+                        _display_dims = f"{_out_w}x{_out_h}"
+
                         post = GeneratedPost(
                             post_number=post_num,
                             platform=platform,
@@ -1055,10 +1046,11 @@ EXECUTION STANDARD
                             item_name=item_name,
                             image_url=save_result["url"],
                             image_preview=image_preview,
+                            layered=None,
                             caption=caption,
                             hashtags=hashtags,
-                            aspect_ratio=platform_spec['aspect_ratio'],
-                            dimensions=f"{platform_spec['width']}x{platform_spec['height']}",
+                            aspect_ratio=_display_ratio,
+                            dimensions=_display_dims,
                             metadata={
                                 "campaign_id": campaign_id,
                                 "content_strategy": content_strategy.value,
@@ -1172,7 +1164,9 @@ EXECUTION STANDARD
                     "website": website,
                     "tagline": tagline,
                     "brand_voice": brand_voice,
-                    "brand_colors": brand_colors,
+                    "primary_color": color_payload["primary_color"],
+                    "secondary_color": color_payload["secondary_color"],
+                    "accent_color": color_payload["accent_color"],
                     "logo_included": logo_bytes is not None,
                     "post_percentage_summary": {
                         item['name']: {
@@ -1188,6 +1182,7 @@ EXECUTION STANDARD
             campaign_job_store[job_id]["status"] = "done"
             campaign_job_store[job_id]["result"] = _result_dict
             _persist_job(job_id, {"status": "done", "result": _result_dict})
+            await _stop_background_task(heartbeat_task, heartbeat_stop)
             _done_event = {"step": "done", "message": "Completed", "result": _result_dict}
             await queue.put(_done_event)
             _append_event(job_id, _done_event)
@@ -1199,6 +1194,7 @@ EXECUTION STANDARD
             campaign_job_store[job_id]["status"] = "error"
             campaign_job_store[job_id]["error"] = str(e)
             _persist_job(job_id, {"status": "error", "error": str(e)})
+            await _stop_background_task(heartbeat_task, heartbeat_stop)
             _error_event = {
                 "step": "error",
                 "message": "Campaign generation failed. Please try again.",
@@ -1224,7 +1220,12 @@ EXECUTION STANDARD
         website: Optional[str] = Form(None, description="Company website URL"),
         tagline: Optional[str] = Form(None, description="Company tagline"),
         brand_voice: Optional[str] = Form(None, description="Brand voice/tone"),
-        brand_colors: Optional[str] = Form(None, description="Brand colors (e.g., 'Red and White', '#E31837, #FFFFFF'). Used to generate brand-identity-aligned images."),
+        primary_color: str = Form(..., description="Main background / base color. Used for backgrounds, big sections, and overall feel. Can be a color name or hex code."),
+        secondary_color: str = Form(..., description="Supporting color used for layout parts, boxes, cards, and dividers. Can be a color name or hex code."),
+        accent_color: Optional[str] = Form(None, description="Highlight / attention color for offers, key words, and CTA emphasis. Can be a color name or hex code."),
+        primary_font: Optional[str] = Form(None, description="Primary font for main headlines and core messages. Make it large, bold, and highly prominent."),
+        secondary_font: Optional[str] = Form(None, description="Secondary font for supporting content like subheadings or descriptions. Keep it clean, readable, and balanced."),
+        accent_font: Optional[str] = Form(None, description="Accent font for highlights, CTAs, and attention-grabbing phrases. Use it sparingly."),
 
         # === CONTENT SETTINGS ===
         content_type: ContentType = Form(ContentType.promotional, description="Type of content"),
@@ -1331,7 +1332,12 @@ EXECUTION STANDARD
             website=website,
             tagline=tagline,
             brand_voice=brand_voice,
-            brand_colors=brand_colors,
+            primary_color=primary_color,
+            secondary_color=secondary_color,
+            accent_color=accent_color,
+            primary_font=primary_font,
+            secondary_font=secondary_font,
+            accent_font=accent_font,
             content_type=content_type,
             content_strategy=content_strategy,
             platforms=platforms,

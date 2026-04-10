@@ -68,53 +68,39 @@ class MediaType(str, Enum):
 # CAMPAIGN PLATFORM SPECS
 # ===============================================================================
 
+# Unified image dimensions for all platforms — no platform-specific sizing
+IMAGE_WIDTH = 1080
+IMAGE_HEIGHT = 1350
+IMAGE_ASPECT_RATIO = "4:5"
+IMAGE_GEMINI_ASPECT = "3:4"
+
 CAMPAIGN_PLATFORM_SPECS = {
     "instagram": {
         "name": "Instagram",
-        "aspect_ratio": "4:5",
-        "width": 1080,
-        "height": 1350,
-        "gemini_aspect": "3:4",
         "tone": "casual, trendy, emoji-friendly, visually engaging",
         "hashtag_count": 10,
         "caption_style": "short, punchy, engaging with emojis"
     },
     "facebook": {
         "name": "Facebook",
-        "aspect_ratio": "4:5",
-        "width": 1080,
-        "height": 1350,
-        "gemini_aspect": "3:4",
         "tone": "friendly, conversational, shareable, community-focused",
         "hashtag_count": 5,
         "caption_style": "medium length, storytelling, engaging"
     },
     "linkedin": {
         "name": "LinkedIn",
-        "aspect_ratio": "4:5",
-        "width": 1080,
-        "height": 1350,
-        "gemini_aspect": "3:4",
         "tone": "professional, thought-leadership, insightful, business-focused",
         "hashtag_count": 3,
         "caption_style": "longer, value-driven, expertise showcase"
     },
     "twitter": {
         "name": "Twitter/X",
-        "aspect_ratio": "4:5",
-        "width": 1080,
-        "height": 1350,
-        "gemini_aspect": "3:4",
         "tone": "concise, witty, attention-grabbing, trending",
         "hashtag_count": 3,
         "caption_style": "very short, impactful, conversation-starter"
     },
     "youtube": {
         "name": "YouTube",
-        "aspect_ratio": "4:5",
-        "width": 1080,
-        "height": 1350,
-        "gemini_aspect": "3:4",
         "tone": "descriptive, click-worthy, thumbnail-optimized",
         "hashtag_count": 5,
         "caption_style": "descriptive, keyword-rich, SEO-friendly"
@@ -237,7 +223,9 @@ class SmartPostResponse(BaseModel):
     website: Optional[str]
     tagline: Optional[str]
     brand_voice: Optional[str]
-    brand_colors: Optional[str]
+    primary_color: str
+    secondary_color: str
+    accent_color: Optional[str]
 
     # Generated Content
     images: List[SmartPostImage]  # Single image or carousel (2-4 images)
@@ -251,23 +239,24 @@ class SmartPostResponse(BaseModel):
     generation_summary: Dict[str, Any]
 
 
+
 # ===============================================================================
 # SMART SCRAPE PYDANTIC MODELS
 # ===============================================================================
- 
+
 class TargetAudienceSegment(BaseModel):
     """Target audience segment details"""
     segment_name: str
     demographics: Optional[str] = None  # Age, gender, location, income
     psychographics: Optional[str] = None  # Interests, values, lifestyle
- 
- 
+
+
 class ProductFeature(BaseModel):
     """Product feature with title and description"""
     title: str
     description: Optional[str] = None
- 
- 
+
+
 class ScrapedProduct(BaseModel):
     """Scraped product information"""
     name: str
@@ -278,20 +267,20 @@ class ScrapedProduct(BaseModel):
     tags: Optional[List[str]] = None
     features: Optional[List[ProductFeature]] = None
     image_urls: Optional[List[str]] = None
- 
- 
+
+
 class ServiceBenefit(BaseModel):
     """Service benefit"""
     title: str
     description: Optional[str] = None
- 
- 
+
+
 class ServiceSkill(BaseModel):
     """Required skill for service"""
     skill_name: str
     level: Optional[str] = None  # Beginner, Intermediate, Advanced, Expert
- 
- 
+
+
 class ScrapedService(BaseModel):
     """Scraped service information"""
     name: str
@@ -305,8 +294,8 @@ class ScrapedService(BaseModel):
     skills: Optional[List[ServiceSkill]] = None
     image_urls: Optional[List[str]] = None
     video_urls: Optional[List[str]] = None
- 
- 
+
+
 class ContentAsset(BaseModel):
     """Content asset discovered on the website"""
     title: str
@@ -317,8 +306,8 @@ class ContentAsset(BaseModel):
     thumbnail_url: Optional[str] = None
     description: Optional[str] = None
     file_type: Optional[str] = None  # pdf, docx, mp4, etc.
- 
- 
+
+
 class BrandIdentity(BaseModel):
     """Complete brand identity information"""
     name: str
@@ -338,27 +327,34 @@ class BrandIdentity(BaseModel):
     preferred_words: Optional[List[str]] = None
     content_guidelines: Optional[str] = None
     content_themes: Optional[List[str]] = None
- 
- 
+
+
 class VisualBranding(BaseModel):
-    """Visual branding elements"""
-    primary_color: Optional[List[str]] = None  # Brand colors: all logo colors + dominant website color
-    secondary_color: Optional[str] = None  # Deprecated — always None
-    headline_font: Optional[str] = None  # Primary heading font family (e.g., "Poppins")
-    body_font: Optional[str] = None  # Body text font family (e.g., "Inter")
+    """Visual branding elements.
+
+    Frontend contract: ``primary_color``, ``secondary_color``, and ``accent_color``
+    are single hex strings (``#RRGGBB``) from the HSL brand palette
+    (``resolve_brand_palette`` in the agentic pipeline). See
+    ``scraper_agents/VISUAL_BRANDING_ROLLBACK.md`` for list-based rollback.
+    """
+    primary_color: Optional[str] = None    # Brand primary, hex #RRGGBB
+    secondary_color: Optional[str] = None   # Brand secondary, hex #RRGGBB
+    accent_color: Optional[str] = None    # Brand accent, hex #RRGGBB
+    headline_font: Optional[str] = None    # Primary heading font family (e.g., "Poppins")
+    body_font: Optional[str] = None        # Body text font family (e.g., "Inter")
     headline_text_color: Optional[str] = None  # Hex code for heading text color
-    google_fonts_url: Optional[str] = None  # Full Google Fonts URL for embedding
-    logo_url: Optional[str] = None  # Original source URL the logo was downloaded from
+    google_fonts_url: Optional[str] = None # Full Google Fonts URL for embedding
+    logo_url: Optional[str] = None         # Original source URL the logo was downloaded from
     logo_local_path: Optional[str] = None  # Local filesystem path
- 
- 
+
+
 class SeoSocial(BaseModel):
     """SEO and social media information"""
     keywords: Optional[List[str]] = None  # 7-10 keywords
     hashtags: Optional[List[str]] = None  # 7-10 hashtags
     things_to_avoid: Optional[List[str]] = None
- 
- 
+
+
 class SocialLinks(BaseModel):
     """Social media profile links"""
     facebook: Optional[str] = None
@@ -370,49 +366,50 @@ class SocialLinks(BaseModel):
     pinterest: Optional[str] = None
     github: Optional[str] = None
     other: Optional[List[str]] = None  # Any other social links found
- 
- 
+
+
 class ContactInfo(BaseModel):
     """Contact information extracted from website"""
     emails: Optional[List[str]] = None
     phones: Optional[List[str]] = None
     addresses: Optional[List[str]] = None
     contact_page_url: Optional[str] = None
- 
- 
+
+
 class SmartScrapeResponse(BaseModel):
     """Complete response from smart website scraping"""
     scrape_id: str
     website_url: str
     scrape_status: str  # "success", "partial", "fallback_used"
     data_source: str  # "website", "gemini_knowledge", "hybrid"
- 
+
     # Brand Identity
     brand_identity: BrandIdentity
- 
+
     # Visual Branding
     visual_branding: VisualBranding
- 
+
     # SEO & Social
     seo_social: SeoSocial
- 
+
     # Social Media Links
     social_links: Optional[SocialLinks] = None
- 
+
     # Contact Information
     contact_info: Optional[ContactInfo] = None
- 
+
     # Products & Services
     products: List[ScrapedProduct]
     services: List[ScrapedService]
- 
+
     # Content Assets
     content_assets: Optional[List[ContentAsset]] = None
- 
+
     # Metadata
     scraped_at: str
     scrape_summary: Dict[str, Any]
- 
+    # Optional: color extraction pipeline audit (sources, rules, candidates)
+    color_audit: Optional[Dict[str, Any]] = None
 
 
 # ===============================================================================
@@ -461,17 +458,22 @@ class CompleteImageResponse(BaseModel):
 # ===============================================================================
 # PROMPT ENHANCER MODELS
 # ===============================================================================
- 
+
 class PromptOption(BaseModel):
-    """Single creative direction generated from user's rough idea"""
-    title: str                # Campaign concept name, e.g. "The Permission to Pause"
-    scene_description: str    # Complete visual brief — scene, composition, light, color, style, and emotional payoff
- 
- 
+    """Single visual scene option generated from user's rough idea"""
+    title: str                # Short label, e.g. "Golden Hour Café Scene"
+    scene_description: str    # Detailed visual prompt ready for image generation
+    mood: str                 # Lighting/atmosphere, e.g. "Warm, inviting, cozy"
+    style: str                # Photography approach, e.g. "Lifestyle photography, shallow DOF"
+
+
 class PromptEnhancerResponse(BaseModel):
-    """Response from /enhance-prompt — 3 visual scene options"""
+    """Response from /enhance-prompt — visual scene options"""
     original_prompt: str
+    post_objective: Optional[str] = None
+    platforms: Optional[List[str]] = None
     options: List[PromptOption]
+ 
 
 
 # ===============================================================================
@@ -488,4 +490,3 @@ class RegenerateImageResponse(BaseModel):
     hashtags: Optional[List[str]] = None
     metadata: Dict[str, Any]
     original_metadata: Optional[Dict[str, Any]] = None    # From source .json sidecar
- 
