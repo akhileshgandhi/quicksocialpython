@@ -7,7 +7,9 @@ from datetime import datetime
 # ===============================================================================
 # TEXT MODEL CONSTANT (campaign.py used "gemini-2.0-flash-exp" for text calls)
 # ===============================================================================
-CAMPAIGN_TEXT_MODEL = "gemini-2.5-flash-lite"
+from gemini_fallback import TEXT_MODEL_FALLBACK_CHAIN
+
+CAMPAIGN_TEXT_MODEL = TEXT_MODEL_FALLBACK_CHAIN[0]
 
 
 # ===============================================================================

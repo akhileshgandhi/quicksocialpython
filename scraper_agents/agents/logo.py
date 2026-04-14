@@ -33,6 +33,7 @@ from bs4 import BeautifulSoup
 from PIL import Image
 
 from scraper_agents.agents.base import BaseAgent
+from gemini_fallback import aio_generate_content_with_fallback
 from scraper_agents.state import ScrapeState
 from scraper_agents.config import (
     TIMEOUTS,
@@ -1427,8 +1428,9 @@ class LogoAgent(BaseAgent):
             )
             self.log(f"Web search: looking for {company_name} logo URL...")
 
-            response = await self.gemini.aio.models.generate_content(
-                model=self.model,
+            response = await aio_generate_content_with_fallback(
+                self.gemini,
+                self.text_models,
                 contents=prompt,
                 config=gtypes.GenerateContentConfig(
                     tools=[gtypes.Tool(google_search=gtypes.GoogleSearch())],

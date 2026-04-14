@@ -19,6 +19,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from scraper_agents.agents.base import BaseAgent
+from gemini_fallback import sync_generate_content_with_fallback
 from scraper_agents.config import (
     CONCURRENCY,
     DEFAULT_HEADERS,
@@ -552,8 +553,9 @@ class CrawlerAgent(BaseAgent):
             ]
             response = await asyncio.wait_for(
                 asyncio.to_thread(
-                    self.gemini.models.generate_content,
-                    model=self.model,
+                    sync_generate_content_with_fallback,
+                    self.gemini,
+                    self.text_models,
                     contents=contents,
                     config=genai.types.GenerateContentConfig(
                         temperature=0.0,
@@ -795,8 +797,9 @@ class CrawlerAgent(BaseAgent):
 
             response = await asyncio.wait_for(
                 asyncio.to_thread(
-                    self.gemini.models.generate_content,
-                    model=self.model,
+                    sync_generate_content_with_fallback,
+                    self.gemini,
+                    self.text_models,
                     contents=contents,
                     config=genai.types.GenerateContentConfig(
                         temperature=0.0,
@@ -1030,8 +1033,9 @@ class CrawlerAgent(BaseAgent):
         try:
             from google import genai
             response = await asyncio.to_thread(
-                self.gemini.models.generate_content,
-                model=self.model,
+                sync_generate_content_with_fallback,
+                self.gemini,
+                self.text_models,
                 contents=prompt,
                 config=genai.types.GenerateContentConfig(
                     temperature=0.0,
@@ -1589,8 +1593,9 @@ class CrawlerAgent(BaseAgent):
             from google import genai
 
             response = await asyncio.to_thread(
-                self.gemini.models.generate_content,
-                model=self.model,
+                sync_generate_content_with_fallback,
+                self.gemini,
+                self.text_models,
                 contents=prompt,
                 config=genai.types.GenerateContentConfig(
                     temperature=0.0,

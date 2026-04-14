@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 from io import BytesIO
 from PIL import Image, ImageFilter
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Sequence
 import json
 import re
 import base64
@@ -16,6 +16,7 @@ from models import (
     ProductFeature, ServiceBenefit, ServiceSkill,
 )
 from prompt_guards import CAPTION_ENRICHMENT_DIRECTIVE
+from gemini_fallback import TEXT_MODEL_FALLBACK_CHAIN, aio_generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -667,7 +668,7 @@ async def generate_caption_and_hashtags(
     brand_voice: Optional[str],
     campaign_goal: str,
     gemini_client,
-    gemini_model: str,
+    text_models: Optional[Sequence[str]] = None,
     tagline: Optional[str] = None,
     campaign_goal_direction: Optional[str] = None,
     content_type_direction: Optional[str] = None
@@ -728,10 +729,12 @@ RESPOND WITH VALID JSON ONLY:
 NO markdown, NO explanation, ONLY the JSON object.
 """
 
+    _models = tuple(text_models) if text_models else TEXT_MODEL_FALLBACK_CHAIN
     try:
-        response = await gemini_client.aio.models.generate_content(
-            model=gemini_model,
-            contents=prompt
+        response = await aio_generate_content_with_fallback(
+            gemini_client,
+            _models,
+            contents=prompt,
         )
 
         # Bulletproof text extraction
@@ -895,19 +898,19 @@ def generate_brand_awareness_items(
 
 async def hybrid_company_understanding(
     gemini_client,
-    gemini_model: str,
     company_name: str,
     company_description: str,
     website: str,
     tagline: str,
-    brand_voice: Optional[str] = None
+    brand_voice: Optional[str] = None,
+    text_models: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
     """
     Analyze company information via Gemini and generate 5 strategic campaign themes.
 
     Args:
         gemini_client: Gemini API client
-        gemini_model: Model name
+        text_models: Ordered list of text models (fallback on transient API errors)
         company_name: Company name
         company_description: Company description
         website: Company website (informational only)
@@ -1008,10 +1011,12 @@ CRITICAL: Themes must be SPECIFIC to this company. All percentages must sum to 1
         ]
     }
 
+    _models = tuple(text_models) if text_models else TEXT_MODEL_FALLBACK_CHAIN
     try:
-        response = await gemini_client.aio.models.generate_content(
-            model=gemini_model,
-            contents=prompt
+        response = await aio_generate_content_with_fallback(
+            gemini_client,
+            _models,
+            contents=prompt,
         )
 
         response_text = extract_gemini_text(response, "company analysis")

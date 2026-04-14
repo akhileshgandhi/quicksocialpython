@@ -30,6 +30,7 @@ from prompt_guards import (
     SPELLING_PRIORITY_PREAMBLE,
     LOGO_FIDELITY_GUARD,
 )
+from gemini_fallback import aio_generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -392,7 +393,7 @@ def _select_carousel_arc(posting_goal: str, brand_voice: str, company_descriptio
     return best, arc_def, slide_count
 
 
-def create_smartpost_router(gemini_client, gemini_model, image_model, storage_dir):
+def create_smartpost_router(gemini_client, text_models, image_models, storage_dir):
     router = APIRouter(tags=["Smart Post"])
     _HEARTBEAT_INTERVAL_SECONDS = 8
 
@@ -747,9 +748,10 @@ RESPOND WITH VALID JSON ONLY (no markdown):
 """
 
         try:
-            response = await gemini_client.aio.models.generate_content(
-                model=gemini_model,
-                contents=prompt
+            response = await aio_generate_content_with_fallback(
+                gemini_client,
+                text_models,
+                contents=prompt,
             )
 
             # Bulletproof text extraction
@@ -962,8 +964,9 @@ Respond with VALID JSON only — no markdown fences:
 }}"""
 
         try:
-            response = await gemini_client.aio.models.generate_content(
-                model=gemini_model,
+            response = await aio_generate_content_with_fallback(
+                gemini_client,
+                text_models,
                 contents=prompt,
             )
             response_text = None
@@ -1410,14 +1413,15 @@ ABSOLUTE PROHIBITIONS
                             logger.info(f"   [SLIDE {img_num}] Reference subject injected: {_subject_label}")
 
                     contents = [_types.Content(role="user", parts=_parts)]
-                    response = await gemini_client.aio.models.generate_content(
-                        model=image_model,
+                    response = await aio_generate_content_with_fallback(
+                        gemini_client,
+                        image_models,
                         contents=contents,
                         config=_types.GenerateContentConfig(
                             temperature=0.75,
                             response_modalities=["IMAGE"],
                             image_config=_types.ImageConfig(aspect_ratio="3:4")
-                        )
+                        ),
                     )
                     usage = getattr(response, 'usage_metadata', None)
                     if usage:
@@ -1550,8 +1554,9 @@ Return ONLY a valid JSON array. No markdown fences, no explanation text. Exactly
 
                 try:
                     from google.genai import types as _gt
-                    _resp = await gemini_client.aio.models.generate_content(
-                        model=gemini_model,
+                    _resp = await aio_generate_content_with_fallback(
+                        gemini_client,
+                        text_models,
                         contents=_brief_prompt,
                         config=_gt.GenerateContentConfig(temperature=0.85),
                     )
@@ -1964,8 +1969,9 @@ EXECUTION STANDARD
                     contents = [types.Content(role="user", parts=_parts)]
 
                     # Generate image
-                    response = await gemini_client.aio.models.generate_content(
-                        model=image_model,
+                    response = await aio_generate_content_with_fallback(
+                        gemini_client,
+                        image_models,
                         contents=contents,
                         config=types.GenerateContentConfig(
                             temperature=0.8,
@@ -1973,7 +1979,7 @@ EXECUTION STANDARD
                             image_config=types.ImageConfig(
                                 aspect_ratio="3:4"
                             )
-                        )
+                        ),
                     )
 
                     # Log token usage with bulletproof handling

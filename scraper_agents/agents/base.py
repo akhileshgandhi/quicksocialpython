@@ -14,7 +14,7 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Sequence
 
 from scraper_agents.config import AGENT_TIME_BUDGETS
 from scraper_agents.state import ScrapeState
@@ -33,9 +33,14 @@ class BaseAgent(ABC):
         gemini_client: Any,
         gemini_model: str,
         storage_dir: Path,
+        *,
+        text_models: Optional[Sequence[str]] = None,
     ):
         self.gemini = gemini_client
         self.model = gemini_model
+        self.text_models: tuple[str, ...] = (
+            tuple(text_models) if text_models else (gemini_model,)
+        )
         self.storage_dir = storage_dir
         self._start_time: float = 0.0
         self._time_budget: float = AGENT_TIME_BUDGETS.get(self.agent_name, 60)

@@ -13,6 +13,7 @@ import re
 from typing import Any, Dict, List
 
 from scraper_agents.agents.base import BaseAgent
+from gemini_fallback import sync_generate_content_with_fallback
 from scraper_agents.prompts.gap_fill import GAP_FILL_PROMPT, SEARCHABLE_GAP_FIELDS
 from scraper_agents.state import ScrapeState
 
@@ -59,8 +60,9 @@ class WebSearchAgent(BaseAgent):
             from google.genai import types
 
             response = await asyncio.to_thread(
-                self.gemini.models.generate_content,
-                model=self.model,
+                sync_generate_content_with_fallback,
+                self.gemini,
+                self.text_models,
                 contents=prompt,
                 config=genai.types.GenerateContentConfig(
                     temperature=0.1,

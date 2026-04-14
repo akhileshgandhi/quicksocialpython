@@ -8,6 +8,8 @@ import sys
 import logging
 from dotenv import load_dotenv
 
+from gemini_fallback import IMAGE_MODEL_FALLBACK_CHAIN, TEXT_MODEL_FALLBACK_CHAIN
+
 # ================= MODULE IMPORTS =================
 from campaign import create_campaign_router
 from smartpost import create_smartpost_router
@@ -30,9 +32,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable is not set. Check your .env file.")
 client = genai.Client(api_key=GEMINI_API_KEY)
-model = "gemini-3.1-flash-lite-preview"
-# model = "gemini-2.5-flash-lite"
-image_model = "gemini-3.1-flash-image-preview"
+# Ordered fallback lists (see gemini_fallback.py) — do not use a single model id here.
 
 # Storage
 STORAGE_DIR = Path("generated_images")
@@ -62,11 +62,11 @@ app.add_middleware(
 app.mount("/images", StaticFiles(directory=str(STORAGE_DIR)), name="images")
 
 # ================= INCLUDE ROUTERS =================
-app.include_router(create_campaign_router(client, model, image_model, STORAGE_DIR))
-app.include_router(create_smartpost_router(client, model, image_model, STORAGE_DIR))
-app.include_router(create_agentic_scraper_router(client, model, STORAGE_DIR))
-app.include_router(create_prompt_enhancer_router(client, model))
-app.include_router(create_regenerate_router(client, model, image_model, STORAGE_DIR))
+app.include_router(create_campaign_router(client, TEXT_MODEL_FALLBACK_CHAIN, IMAGE_MODEL_FALLBACK_CHAIN, STORAGE_DIR))
+app.include_router(create_smartpost_router(client, TEXT_MODEL_FALLBACK_CHAIN, IMAGE_MODEL_FALLBACK_CHAIN, STORAGE_DIR))
+app.include_router(create_agentic_scraper_router(client, TEXT_MODEL_FALLBACK_CHAIN, STORAGE_DIR))
+app.include_router(create_prompt_enhancer_router(client, TEXT_MODEL_FALLBACK_CHAIN))
+app.include_router(create_regenerate_router(client, TEXT_MODEL_FALLBACK_CHAIN, IMAGE_MODEL_FALLBACK_CHAIN, STORAGE_DIR))
 
 
 # ================= HEALTH CHECK =================

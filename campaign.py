@@ -17,7 +17,7 @@ from models import (
     CampaignGoal, ContentType, ContentStrategy,
     CampaignProduct, CampaignService, Feature, RequiredSkill,
     GeneratedPost, CampaignResponse,
-    CAMPAIGN_PLATFORM_SPECS, CAMPAIGN_TEXT_MODEL
+    CAMPAIGN_PLATFORM_SPECS,
 )
 from utils import (
     extract_gemini_text, log_gemini_usage,
@@ -28,11 +28,12 @@ from utils import (
     resize_image_for_platform, build_brand_payload,
 )
 from prompt_guards import NEGATIVE_PROMPT, TYPOGRAPHY_PRECISION, REALISM_STANDARD, SPELLING_PRIORITY_PREAMBLE
+from gemini_fallback import aio_generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
 
 
-def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir):
+def create_campaign_router(gemini_client, text_models, image_models, storage_dir):
     router = APIRouter(tags=["Campaign"])
     campaign_job_store: Dict[str, dict] = {}
     _HEARTBEAT_INTERVAL_SECONDS = 8
@@ -509,12 +510,12 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
                     # Use hybrid approach: web scraping + Gemini knowledge
                     company_analysis = await hybrid_company_understanding(
                         gemini_client=gemini_client,
-                        gemini_model=CAMPAIGN_TEXT_MODEL,
                         company_name=company_name,
                         company_description=company_description or f"Company: {company_name}",
                         website=website or "",
                         tagline=tagline or "N/A",
-                        brand_voice=brand_voice
+                        brand_voice=brand_voice,
+                        text_models=text_models,
                     )
                     
                     logger.info(f"   [ANALYSIS] Analysis complete - Data source: {company_analysis.get('data_source', 'unknown')}")
@@ -689,7 +690,7 @@ def create_campaign_router(gemini_client, gemini_model, image_model, storage_dir
                         campaign_goal_direction=_get_campaign_goal_caption_direction(campaign_goal.value),
                         content_type_direction=_get_content_type_caption_direction(content_type.value),
                         gemini_client=gemini_client,
-                        gemini_model=gemini_model,
+                        text_models=text_models,
                         tagline=tagline
                     )
                     logger.info(f"      [STEP A] Caption: '{caption[:50]}...' | Display: '{campaign_display_text[:50]}'")
@@ -912,9 +913,10 @@ EXECUTION STANDARD
                         # Single user turn containing all parts
                         contents = [types.Content(role="user", parts=_parts)]
 
-                        # STEP B: Generate image
-                        image_response = await gemini_client.aio.models.generate_content(
-                            model=image_model,
+                        # STEP B: Generate image (fallback chain on 503 / overload)
+                        image_response = await aio_generate_content_with_fallback(
+                            gemini_client,
+                            image_models,
                             contents=contents,
                             config=types.GenerateContentConfig(
                                 temperature=0.75,
@@ -922,7 +924,7 @@ EXECUTION STANDARD
                                 image_config=types.ImageConfig(
                                     aspect_ratio=aspect_ratio
                                 )
-                            )
+                            ),
                         )
 
                         # Log token usage
@@ -1005,7 +1007,7 @@ EXECUTION STANDARD
                             "aspect_ratio": "4:5" if aspect_ratio == "3:4" else "1:1",
                             "dimensions": f"{_out_w}x{_out_h}",
                             "file_size_bytes": len(image_bytes),
-                            "model": image_model,
+                            "model": image_models[0] if image_models else None,
                             "caption": caption,
                             "hashtags": hashtags,
                             "display_text": campaign_display_text,

@@ -14,6 +14,7 @@ import re
 from typing import Any, Dict
 
 from scraper_agents.agents.base import BaseAgent
+from gemini_fallback import sync_generate_content_with_fallback
 from scraper_agents.extractors.html_helpers import infer_country_from_tld
 from scraper_agents.prompts.brand_analysis import BRAND_ANALYSIS_PROMPT
 from scraper_agents.state import ScrapeState
@@ -103,8 +104,9 @@ class BrandIntelligenceAgent(BaseAgent):
             from google import genai
 
             response = await asyncio.to_thread(
-                self.gemini.models.generate_content,
-                model=self.model,
+                sync_generate_content_with_fallback,
+                self.gemini,
+                self.text_models,
                 contents=prompt,
                 config=genai.types.GenerateContentConfig(
                     temperature=0.0,

@@ -14,6 +14,7 @@ import logging
 
 from models import RegenerateImageResponse
 from utils import download_reference_image
+from gemini_fallback import aio_generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ def _upload_to_cloudinary(image_bytes: bytes, folder: str, public_id: str) -> Op
 
 
 
-def create_regenerate_router(gemini_client, gemini_model, image_model, storage_dir):
+def create_regenerate_router(gemini_client, text_models, image_models, storage_dir):
     router = APIRouter(tags=["Regenerate"])
 
     async def _resolve_source_image(
@@ -302,8 +303,9 @@ def create_regenerate_router(gemini_client, gemini_model, image_model, storage_d
                 response_modalities=["IMAGE"],
             )
 
-            response = await gemini_client.aio.models.generate_content(
-                model=image_model,
+            response = await aio_generate_content_with_fallback(
+                gemini_client,
+                image_models,
                 contents=contents,
                 config=config,
             )
@@ -372,8 +374,9 @@ def create_regenerate_router(gemini_client, gemini_model, image_model, storage_d
                         caption_prompt,
                     ]
 
-                    cap_response = await gemini_client.aio.models.generate_content(
-                        model=gemini_model,
+                    cap_response = await aio_generate_content_with_fallback(
+                        gemini_client,
+                        text_models,
                         contents=caption_contents,
                     )
 
@@ -425,7 +428,7 @@ def create_regenerate_router(gemini_client, gemini_model, image_model, storage_d
                 "edited_dimensions": f"{edited_w}x{edited_h}",
                 "has_logo": bool(logo_bytes),
                 "generated_at": datetime.now().isoformat(),
-                "model": image_model,
+                "model": image_models[0] if image_models else None,
                 "file_size_bytes": len(edited_bytes),
                 "caption": caption_text,
                 "hashtags": hashtags_list,

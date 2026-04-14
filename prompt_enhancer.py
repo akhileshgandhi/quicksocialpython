@@ -13,6 +13,7 @@ from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 
 from models import PromptEnhancerResponse, PromptOption
 from utils import download_reference_image, process_uploaded_reference_image
+from gemini_fallback import aio_generate_content_with_fallback
 
 logger = logging.getLogger("quicksocial.prompt_enhancer")
 
@@ -39,7 +40,7 @@ _PLATFORM_HINTS = {
 }
 
 
-def create_prompt_enhancer_router(gemini_client, gemini_model):
+def create_prompt_enhancer_router(gemini_client, text_models):
     router = APIRouter(tags=["Prompt Enhancer"])
 
     @router.post("/enhance-prompt", response_model=PromptEnhancerResponse)
@@ -333,14 +334,15 @@ NO markdown, NO explanation, ONLY the JSON object."""
 
         contents.append(prompt)
 
-        logger.info(f"[ENHANCE] Prompt built — {len(prompt)} chars, {ref_count} ref images, sending to Gemini ({gemini_model})...")
+        logger.info(f"[ENHANCE] Prompt built — {len(prompt)} chars, {ref_count} ref images, sending to Gemini ({text_models[0] if text_models else '?'})...")
 
         try:
             from google.genai import types
 
             gemini_start = time.time()
-            response = await gemini_client.aio.models.generate_content(
-                model=gemini_model,
+            response = await aio_generate_content_with_fallback(
+                gemini_client,
+                text_models,
                 contents=contents,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",

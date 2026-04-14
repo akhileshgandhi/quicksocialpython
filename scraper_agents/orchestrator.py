@@ -15,7 +15,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Form, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -106,8 +106,8 @@ def _cleanup_old_jobs() -> None:
                 pass
 
 
-def create_agentic_scraper_router(gemini_client, gemini_model: str, storage_dir: Path):
-    """Factory — same signature as legacy create_scraper_router()."""
+def create_agentic_scraper_router(gemini_client, text_models: Sequence[str], storage_dir: Path):
+    """Factory — *text_models* is an ordered fallback list (same as main app)."""
     global _JOBS_DIR
     _JOBS_DIR = storage_dir / "smart_scrape"
     _JOBS_DIR.mkdir(parents=True, exist_ok=True)
@@ -127,13 +127,13 @@ def create_agentic_scraper_router(gemini_client, gemini_model: str, storage_dir:
             return StreamingResponse(
                 _sse_wrapper(
                     website_url, company_name_hint, download_logo, deep_scrape,
-                    gemini_client, gemini_model, storage_dir,
+                    gemini_client, text_models, storage_dir,
                 ),
                 media_type="text/event-stream",
             )
         result = await _run_agentic_scrape(
             website_url, company_name_hint, download_logo, deep_scrape,
-            gemini_client, gemini_model, storage_dir,
+            gemini_client, text_models, storage_dir,
         )
         return result
 
@@ -176,7 +176,7 @@ def create_agentic_scraper_router(gemini_client, gemini_model: str, storage_dir:
             try:
                 result = await _run_agentic_scrape(
                     website_url, company_name_hint, download_logo, deep_scrape,
-                    gemini_client, gemini_model, storage_dir,
+                    gemini_client, text_models, storage_dir,
                     progress_queue=progress_q,
                     preset_scrape_id=scrape_id,
                 )
@@ -290,7 +290,7 @@ def create_agentic_scraper_router(gemini_client, gemini_model: str, storage_dir:
 
 async def _sse_wrapper(
     website_url, company_name_hint, download_logo, deep_scrape,
-    gemini_client, gemini_model, storage_dir,
+    gemini_client, text_models, storage_dir,
 ):
     """SSE streaming wrapper — sends keepalive pings while scraping."""
     import asyncio
@@ -298,7 +298,7 @@ async def _sse_wrapper(
     task = asyncio.create_task(
         _run_agentic_scrape(
             website_url, company_name_hint, download_logo, deep_scrape,
-            gemini_client, gemini_model, storage_dir,
+            gemini_client, text_models, storage_dir,
         )
     )
     start = time.time()
@@ -320,7 +320,7 @@ async def _run_agentic_scrape(
     download_logo: bool,
     deep_scrape: bool,
     gemini_client,
-    gemini_model: str,
+    text_models: Sequence[str],
     storage_dir: Path,
     progress_queue: Optional[asyncio.Queue] = None,
     preset_scrape_id: Optional[str] = None,
@@ -376,7 +376,10 @@ async def _run_agentic_scrape(
     # ── Phase 1: Crawler (blocking) ──────────────────────────────────
     await _progress("crawling", "Mapping site structure...")
     logger.info("\n[PHASE 1] CrawlerAgent — mapping site structure...")
-    crawler = CrawlerAgent(gemini_client, gemini_model, storage_dir)
+    _primary = text_models[0] if text_models else ""
+    crawler = CrawlerAgent(
+        gemini_client, _primary, storage_dir, text_models=text_models,
+    )
     await crawler.execute(state)
 
     if state.scrape_status == "failed":
@@ -392,12 +395,12 @@ async def _run_agentic_scrape(
     phase2_start = time.time()
 
     agents_2 = [
-        LogoAgent(gemini_client, gemini_model, storage_dir),
-        VisualIdentityAgent(gemini_client, gemini_model, storage_dir),
-        ProductAgent(gemini_client, gemini_model, storage_dir),
-        ContentAssetsAgent(gemini_client, gemini_model, storage_dir),
-        ContactSocialAgent(gemini_client, gemini_model, storage_dir),
-        BrandIntelligenceAgent(gemini_client, gemini_model, storage_dir),
+        LogoAgent(gemini_client, _primary, storage_dir, text_models=text_models),
+        VisualIdentityAgent(gemini_client, _primary, storage_dir, text_models=text_models),
+        ProductAgent(gemini_client, _primary, storage_dir, text_models=text_models),
+        ContentAssetsAgent(gemini_client, _primary, storage_dir, text_models=text_models),
+        ContactSocialAgent(gemini_client, _primary, storage_dir, text_models=text_models),
+        BrandIntelligenceAgent(gemini_client, _primary, storage_dir, text_models=text_models),
     ]
 
     await asyncio.gather(*(agent.execute(state) for agent in agents_2))
@@ -417,7 +420,7 @@ async def _run_agentic_scrape(
     phase3_start = time.time()
 
     if state.data_gaps:
-        ws_agent = WebSearchAgent(gemini_client, gemini_model, storage_dir)
+        ws_agent = WebSearchAgent(gemini_client, _primary, storage_dir, text_models=text_models)
         await ws_agent.execute(state)
 
     phase3_time = time.time() - phase3_start
